@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <Nullable>disable</Nullable>
+        <Title>BWEM.NET</Title>
+        <Version>0.1.0</Version>
+        <Authors>Alejandro Coto Gutiérrez</Authors>
+        <Description>A port of BWEM to .NET.</Description>
+        <Copyright>Copyright (c) Alejandro Coto Gutiérrez 2023</Copyright>
+        <PackageProjectUrl>https://github.com/acoto87/bwem.net</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/acoto87/bwem.net</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>api;ai;bots;starcraft;bwapi;startcraft-broodwar;broodwar;startcraft-bot;startcraft-broodwar-bot;startcraft-ai;bwapi-net;broodwar-bot;broodwar-api;</PackageTags>
+        <PackageLicenseExpression>Zlib</PackageLicenseExpression>
+        <IncludeSymbols>True</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Include="..\..\README.md">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="BWAPI.NET" Version="0.1.2" />
+    </ItemGroup>
+
+</Project>
