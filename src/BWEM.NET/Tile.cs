@@ -1,8 +1,15 @@
-using System;
 using System.Diagnostics;
 
 namespace BWEM.NET
 {
+    public interface ITile
+    {
+        /// <summary>
+        /// The <see cref="Area"/> associated with the tile.
+        /// </summary>
+        AreaId AreaId { get; }
+    }
+
     /// <summary>
     /// Corresponds to BWAPI/Starcraft's concept of minitile (8x8 pixels).
     /// MiniTiles are accessed using WalkPositions (Cf. Map::GetMiniTile).
@@ -14,7 +21,7 @@ namespace BWEM.NET
     /// The whole process of analysis of a Map relies on the walkability information
     /// from which are derived successively : altitudes, Areas, ChokePoints.
     /// </summary>
-    public class MiniTile
+    public class MiniTile : ITile
     {
         private static readonly AreaId _blockingCP = short.MinValue;
 
@@ -27,18 +34,6 @@ namespace BWEM.NET
         // > 0 -> index of some Area;
         // < 0 -> some walkable terrain, but too small to be part of an Area
         private AreaId _areaId = -1;
-
-        internal void ReplaceAreaId(AreaId id)
-        {
-            Debug.Assert((_areaId > 0) && ((id >= 1) || (id <= -2)) && (id != _areaId));
-            _areaId = id;
-        }
-
-        internal void ReplaceBlockedAreaId(AreaId id)
-        {
-            Debug.Assert((_areaId == _blockingCP) && (id >= 1));
-            _areaId = id;
-        }
 
         // Corresponds approximatively to BWAPI::isWalkable
         // The differences are:
@@ -73,11 +68,6 @@ namespace BWEM.NET
         public bool Sea
         {
             get => _altitude == 0;
-            internal set
-            {
-                Debug.Assert(!Walkable && SeaOrLake);
-                _altitude = 0;
-            }
         }
 
         // Lake-MiniTiles are unwalkable MiniTiles that have their Altitude() > 0.
@@ -86,11 +76,6 @@ namespace BWEM.NET
         public bool Lake
         {
             get => (_altitude != 0) && !Walkable;
-            internal set
-            {
-                Debug.Assert(Walkable && Sea);
-                _altitude = -1;
-            }
         }
 
         // Terrain MiniTiles are just walkable MiniTiles
@@ -135,11 +120,36 @@ namespace BWEM.NET
         internal bool Blocked
         {
             get => _areaId == _blockingCP;
-            set
-            {
-                Debug.Assert(AreaIdMissing);
-                _areaId = _blockingCP;
-            }
+        }
+
+        internal void SetSea()
+        {
+            Debug.Assert(!Walkable && SeaOrLake);
+            _altitude = 0;
+        }
+
+        internal void SetLake()
+        {
+            Debug.Assert(!Walkable && Sea);
+            _altitude = -1;
+        }
+
+        internal void SetBlocked()
+        {
+            Debug.Assert(AreaIdMissing);
+            _areaId = _blockingCP;
+        }
+
+        internal void ReplaceAreaId(AreaId id)
+        {
+            Debug.Assert((_areaId > 0) && ((id >= 1) || (id <= -2)) && (id != _areaId));
+            _areaId = id;
+        }
+
+        internal void ReplaceBlockedAreaId(AreaId id)
+        {
+            Debug.Assert((_areaId == _blockingCP) && (id >= 1));
+            _areaId = id;
         }
     }
 
@@ -157,12 +167,11 @@ namespace BWEM.NET
     /// Tiles inherit utils::Markable, which provides marking ability
     /// Tiles inherit utils::UserData, which provides free-to-use data.
     /// </summary>
-    public class Tile
+    public class Tile : ITile
     {
         private Neutral _neutral;
         private Altitude _minAltitude;
         private AreaId _areaId;
-        private int _internalData;
         private GroundHeight_ _groundHeight;
         private bool _buildable;
         private bool _doodad;
@@ -259,7 +268,7 @@ namespace BWEM.NET
         /// </summary>
         public int StackedNeutrals()
         {
-            int stackSize = 0;
+            var stackSize = 0;
 
             for (var stacked = Neutral ; stacked != null ; stacked = stacked.NextStacked)
             {
@@ -277,12 +286,6 @@ namespace BWEM.NET
         internal void SetDoodad()
         {
             _doodad = true;
-        }
-
-        internal int InternalData
-        {
-            get => _internalData;
-            set => _internalData = value;
         }
 
         internal void AddNeutral(Neutral neutral)

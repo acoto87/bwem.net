@@ -26,7 +26,10 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="BWAPI.NET" Version="0.1.2" />
+      <!-- <PackageReference Include="BWAPI.NET" Version="0.1.4" /> -->
+      <Reference Include="BWAPI.NET">
+        <HintPath>C:\Users\acoto\Projects\bwapi.net\src\BWAPI.NET\bin\Debug\netstandard2.1\BWAPI.NET.dll</HintPath>
+    </Reference>
     </ItemGroup>
 
 </Project>

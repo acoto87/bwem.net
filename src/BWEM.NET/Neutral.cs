@@ -11,7 +11,7 @@ namespace BWEM.NET
     /// The units concerned are the Ressources (Minerals and Geysers) and the static Buildings.
     /// Stacked Neutrals are supported, provided they share the same type at the same location.
     /// </summary>
-    public class Neutral : IDisposable
+    public class Neutral
     {
         private readonly Unit _unit;
         private readonly UnitType _unitType;
@@ -19,7 +19,7 @@ namespace BWEM.NET
         private readonly TilePosition _topLeft;
         private readonly TilePosition _size;
         private readonly Map _map;
-        private readonly List<WalkPosition> _blockedAreas;
+        private List<WalkPosition> _blockedAreas;
 
         private Neutral _nextStacked;
 
@@ -37,10 +37,12 @@ namespace BWEM.NET
                 _topLeft = new TilePosition(_topLeft.x + 1, _topLeft.y);
             }
 
+            _blockedAreas = new List<WalkPosition>();
+
             PutOnTiles();
         }
 
-        public virtual void Dispose()
+        public virtual void Destroy()
         {
             RemoveFromTiles();
 
@@ -153,31 +155,43 @@ namespace BWEM.NET
             get => _map;
         }
 
+        internal void SetBlocking(List<WalkPosition> blockedAreas)
+        {
+            Debug.Assert(_blockedAreas.Count == 0 && blockedAreas.Count > 0);
+            _blockedAreas = blockedAreas;
+        }
+
         private void PutOnTiles()
         {
             Debug.Assert(_nextStacked == null);
 
-            for (int dy = 0 ; dy < _size.y ; ++dy)
+            for (var dy = 0 ; dy < _size.y ; ++dy)
             {
-                for (int dx = 0 ; dx < _size.x ; ++dx)
+                for (var dx = 0 ; dx < _size.x ; ++dx)
                 {
-                    var tile = _map->GetTile_(_topLeft + new TilePosition(dx, dy));
-                    if (!tile.GetNeutral())
+                    var tile = _map.GetTile(_topLeft + new TilePosition(dx, dy));
+                    if (tile.Neutral == null)
                     {
                         tile.AddNeutral(this);
                     }
                     else
                     {
-                        var lastStacked = tile.Neutral.LastStacked;
+                        var top = tile.Neutral.LastStacked;
 
-                        Debug.Assert(this != tile.GetNeutral());
-                        Debug.Assert(this != lastStacked);
-                        Debug.Assert(!lastStacked->IsGeyser());
-                        Debug.Assert(lastStacked.Type == _unitType, "stacked neutrals have different types: " + lastStacked.Type.Name + " / " + _unitType.GetName());
-                        Debug.Assert(lastStacked.TopLeft == TopLeft, "stacked neutrals not aligned: " + lastStacked.TopLeft + " / " + TopLeft);
+                        // https://github.com/N00byEdge/BWEM-community/issues/30#issuecomment-400840140
+                        if (top.TopLeft != TopLeft || top.BottomRight != BottomRight)
+                        {
+                            continue;
+                        }
+
+                        Debug.Assert(this != tile.Neutral);
+                        Debug.Assert(this != top);
+                        Debug.Assert(!(top is Geyser));
+                        Debug.Assert(top.UnitType == _unitType, "stacked neutrals have different types: " + top.UnitType + " / " + _unitType);
+                        Debug.Assert(top.TopLeft == TopLeft, "stacked neutrals not aligned: " + top.TopLeft + " / " + TopLeft);
                         Debug.Assert((dx == 0) && (dy == 0));
 
-                        lastStacked->_nextStacked = this;
+                        top._nextStacked = this;
                         return;
                     }
                 }
@@ -186,13 +200,13 @@ namespace BWEM.NET
 
 	    private void RemoveFromTiles()
         {
-            for (int dy = 0 ; dy < _size.y ; ++dy)
+            for (var dy = 0 ; dy < _size.y ; ++dy)
             {
-                for (int dx = 0 ; dx < _size.x ; ++dx)
+                for (var dx = 0 ; dx < _size.x ; ++dx)
                 {
-                    var tile = _map.GetTile_(_topLeft + new TilePosition(dx, dy));
+                    var tile = _map.GetTile(_topLeft + new TilePosition(dx, dy));
 
-                    var tileNeutral = tile.GetNeutral();
+                    var tileNeutral = tile.Neutral;
                     Debug.Assert(tileNeutral != null);
 
                     if (tileNeutral == this)
@@ -205,10 +219,10 @@ namespace BWEM.NET
                     }
                     else
                     {
-                        var _prevStacked = tile.GetNeutral();
-                        while (_prevStacked.NextStacked() != this)
+                        var _prevStacked = tile.Neutral;
+                        while (_prevStacked.NextStacked != this)
                         {
-                            _prevStacked = _prevStacked.NextStacked();
+                            _prevStacked = _prevStacked.NextStacked;
                         }
 
                         Debug.Assert(_prevStacked.UnitType == UnitType);
@@ -269,10 +283,10 @@ namespace BWEM.NET
             Debug.Assert(UnitType.IsMineralField());
         }
 
-        public override void Dispose()
+        public override void Destroy()
         {
             Map.OnMineralDestroyed(this);
-            base.Dispose();
+            base.Destroy();
         }
     }
 

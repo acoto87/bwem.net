@@ -7,6 +7,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{32EB5CF2-A7F
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BWEM.NET", "src\BWEM.NET\BWEM.NET.csproj", "{1CE05C96-D0D7-4B4B-8398-0D9E9513588B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{D8AAAB0B-705E-4F9E-91CD-B4B72B83A510}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineHell", "examples\MarineHell\MarineHell.csproj", "{335E84DB-EA71-44C8-9D36-87B4AF49D74E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,12 +21,17 @@ Global
 		{1CE05C96-D0D7-4B4B-8398-0D9E9513588B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1CE05C96-D0D7-4B4B-8398-0D9E9513588B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1CE05C96-D0D7-4B4B-8398-0D9E9513588B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{335E84DB-EA71-44C8-9D36-87B4AF49D74E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{335E84DB-EA71-44C8-9D36-87B4AF49D74E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{335E84DB-EA71-44C8-9D36-87B4AF49D74E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{335E84DB-EA71-44C8-9D36-87B4AF49D74E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{1CE05C96-D0D7-4B4B-8398-0D9E9513588B} = {32EB5CF2-A7FC-4BF8-B4CD-DFD25C5DAAD3}
+		{335E84DB-EA71-44C8-9D36-87B4AF49D74E} = {D8AAAB0B-705E-4F9E-91CD-B4B72B83A510}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {11897D2B-C662-4D09-ADBA-96DFBEF99ACF}

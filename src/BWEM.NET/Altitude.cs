@@ -75,6 +75,26 @@ namespace BWEM.NET
             return left.CompareTo(right) >= 0;
         }
 
+        public static Altitude operator +(Altitude left, Altitude right)
+        {
+            return new Altitude((short)(left.Value + right.Value));
+        }
+
+        public static Altitude operator -(Altitude left, Altitude right)
+        {
+            return new Altitude((short)(left.Value - right.Value));
+        }
+
+        public static Altitude operator *(Altitude left, Altitude right)
+        {
+            return new Altitude((short)(left.Value * right.Value));
+        }
+
+        public static Altitude operator /(Altitude left, Altitude right)
+        {
+            return new Altitude((short)(left.Value / right.Value));
+        }
+
         public static implicit operator Altitude(short value)
         {
             return new Altitude(value);
