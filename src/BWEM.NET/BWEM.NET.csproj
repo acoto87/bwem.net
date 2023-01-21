@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>disable</Nullable>
         <Title>BWEM.NET</Title>
-        <Version>0.1.0</Version>
+        <Version>0.1.5</Version>
         <Authors>Alejandro Coto Gutiérrez</Authors>
         <Description>A port of BWEM to .NET.</Description>
         <Copyright>Copyright (c) Alejandro Coto Gutiérrez 2023</Copyright>
@@ -19,17 +19,18 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Include="..\..\README.md">
-        <Pack>True</Pack>
-        <PackagePath>\</PackagePath>
-      </None>
+        <None Include="..\..\LICENSE">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+        <None Include="..\..\README.md">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
     </ItemGroup>
 
     <ItemGroup>
-      <!-- <PackageReference Include="BWAPI.NET" Version="0.1.4" /> -->
-      <Reference Include="BWAPI.NET">
-        <HintPath>C:\Users\acoto\Projects\bwapi.net\src\BWAPI.NET\bin\Debug\netstandard2.1\BWAPI.NET.dll</HintPath>
-    </Reference>
+        <PackageReference Include="BWAPI.NET" Version="0.1.5" />
     </ItemGroup>
 
 </Project>

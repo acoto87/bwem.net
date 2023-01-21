@@ -538,7 +538,7 @@ namespace System.Collections.Generic
             for (var i = 0; i < _size; i++)
             {
                 var currentNode = _nodes[i];
-                if (object.Equals(currentNode.Element, element))
+                if (Equals(currentNode.Element, element))
                 {
                     elementIndex = i;
                     break;

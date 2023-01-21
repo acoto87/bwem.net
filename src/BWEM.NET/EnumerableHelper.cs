@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace BWEM.NET
 {
-    public static class EnumerableHelper
+    internal static class EnumerableHelper
     {
         /// <summary>Gets the maximum number of elements that may be contained in an array.</summary>
         /// <returns>The maximum count of elements allowed in any array.</returns>

@@ -1,6 +1,6 @@
-/*
- * This implementation is coming from https://github.com/StephenCleary/Deque.
- */
+//
+// Copied from https://github.com/StephenCleary/Deque.
+//
 
 #nullable enable
 

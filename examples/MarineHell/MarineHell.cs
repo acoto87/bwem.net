@@ -7,6 +7,15 @@ namespace MarineHell
     // https://github.com/libor-vilimek/marine-hell
     // http://sscaitournament.com/index.php?action=tutorial
 
+    // Changes
+    // line: 389
+    // workers[7] fails when there are not 7 workers
+    // ... (workers.Count > 7 ? workers[7].IsGatheringMinerals() : workers[^1].IsGatheringMinerals()) ...
+
+    // line 239
+    // commandCenter is null when it gets destroyed
+    // commandCenter != null && ...
+
     public class MarineHell : DefaultBWListener
     {
         private BWClient _bwClient;
@@ -24,6 +33,7 @@ namespace MarineHell
         private string _debugText = "";
         private readonly HashSet<Position> _enemyBuildingMemory = new HashSet<Position>();
         private Strategy _selectedStrategy = Strategy.WaitFor50;
+        private List<Position> _chokePointsCenters;
 
         public void Run()
         {
@@ -48,9 +58,15 @@ namespace MarineHell
             _self = _game.Self();
             _game.SetLocalSpeed(0);
 
-            // Use BWTA to analyze map
-            // This may take a few minutes if the map is processed first time!
-            BWTA.Initialize(_game);
+            Map.Instance.Initialize(_game);
+
+            _chokePointsCenters = new List<Position>();
+            foreach (var c in Map.Instance.ChokePoints)
+            {
+                var sides = CalculateSides(c.Geometry);
+                var center = (sides.Left + sides.Right) / 2;
+                _chokePointsCenters.Add(center);
+            }
         }
 
         public override void OnFrame()
@@ -86,18 +102,18 @@ namespace MarineHell
             var workers = new List<Unit>();
             var barracks = new List<Unit>();
             var marines = new List<Unit>();
-            var baseLocations = new List<BaseLocation>();
-            var allLocations = new List<BaseLocation>();
+            var baseLocations = new List<Base>();
+            var allLocations = new List<Base>();
             var workerAttacked = Position.Invalid;
             Unit commandCenter = null;
             Unit bunker = null;
 
-            if (_bunkerBuilder != null && _bunkerBuilder.Exists() == false)
+            if (_bunkerBuilder != null && !_bunkerBuilder.Exists())
             {
                 _bunkerBuilder = null;
             }
 
-            if (_searcher != null && _searcher.Exists() == false)
+            if (_searcher != null && !_searcher.Exists())
             {
                 _searcher = null;
             }
@@ -110,9 +126,6 @@ namespace MarineHell
             // iterate through my units
             foreach (var myUnit in _self.GetUnits())
             {
-                // units.append(myUnit.getType()).append("
-                // ").append(myUnit.getTilePosition()).append("\n");
-
                 if (myUnit.GetUnitType().IsWorker())
                 {
                     workers.Add(myUnit);
@@ -124,7 +137,7 @@ namespace MarineHell
                     commandCenter = myUnit;
                 }
 
-                if (myUnit.GetUnitType() == UnitType.Terran_Barracks && myUnit.IsBeingConstructed() == false)
+                if (myUnit.GetUnitType() == UnitType.Terran_Barracks && !myUnit.IsBeingConstructed())
                 {
                     barracks.Add(myUnit);
                 }
@@ -134,7 +147,7 @@ namespace MarineHell
                     marines.Add(myUnit);
                 }
 
-                if (myUnit.GetUnitType() == UnitType.Terran_Bunker && myUnit.IsBeingConstructed() == false)
+                if (myUnit.GetUnitType() == UnitType.Terran_Bunker && !myUnit.IsBeingConstructed())
                 {
                     bunker = myUnit;
                 }
@@ -149,8 +162,7 @@ namespace MarineHell
 
             foreach (var myUnit in workers)
             {
-                // if it's a worker and it's idle, send it to the closest mineral
-                // patch
+                // if it's a worker and it's idle, send it to the closest mineral patch
                 if (myUnit.GetUnitType().IsWorker() && myUnit.IsIdle())
                 {
                     var skip = false;
@@ -176,7 +188,7 @@ namespace MarineHell
                     // if a mineral patch was found, send the worker to gather it
                     if (closestMineral != null)
                     {
-                        if (skip == false)
+                        if (!skip)
                         {
                             myUnit.Gather(closestMineral, false);
                         }
@@ -200,20 +212,20 @@ namespace MarineHell
                 _bunkerBuilder = workers[10];
             }
 
-            if (bunker == null && barracks.Count >= 1 && workers.Count > 10 && _dontBuild == false)
+            if (bunker == null && barracks.Count >= 1 && workers.Count > 10 && !_dontBuild)
             {
                 _game.SetLocalSpeed(20);
 
                 if (_timeout < 200)
                 {
                     _game.DrawTextMap(_bunkerBuilder.GetPosition(), "Moving to create bunker " + _timeout + "/400");
-                    _bunkerBuilder.Move(BWTA.GetNearestChokepoint(_bunkerBuilder.GetPosition()).Center);
+                    _bunkerBuilder.Move(GetNearestChokepointCenter(_bunkerBuilder.GetPosition()));
                     _timeout++;
                 }
                 else
                 {
                     _game.DrawTextMap(_bunkerBuilder.GetPosition(), "Buiding bunker");
-                    var buildTile = getBuildTile(_bunkerBuilder, UnitType.Terran_Barracks, _bunkerBuilder.GetTilePosition());
+                    var buildTile = GetBuildTile(_bunkerBuilder, UnitType.Terran_Barracks, _bunkerBuilder.GetTilePosition());
                     if (buildTile != TilePosition.Invalid)
                     {
                         _bunkerBuilder.Build(UnitType.Terran_Bunker, buildTile);
@@ -232,7 +244,7 @@ namespace MarineHell
                 _bunkerBuilder.Repair(bunker);
             }
 
-            if (commandCenter.GetTrainingQueue().Count == 0 && workers.Count < 20 && _self.Minerals() >= 50)
+            if (commandCenter != null && commandCenter.GetTrainingQueue().Count == 0 && workers.Count < 20 && _self.Minerals() >= 50)
             {
                 commandCenter.Build(UnitType.Terran_SCV);
             }
@@ -253,11 +265,11 @@ namespace MarineHell
             var i = 1;
             foreach (var worker in workers)
             {
-                if (worker.IsGatheringMinerals() && _dontBuild == false)
+                if (worker.IsGatheringMinerals() && !_dontBuild)
                 {
                     if (_self.Minerals() >= 150 * i && barracks.Count < 6)
                     {
-                        var buildTile = getBuildTile(worker, UnitType.Terran_Barracks, _self.GetStartLocation());
+                        var buildTile = GetBuildTile(worker, UnitType.Terran_Barracks, _self.GetStartLocation());
                         if (buildTile != TilePosition.Invalid)
                         {
                             worker.Build(UnitType.Terran_Barracks, buildTile);
@@ -266,10 +278,8 @@ namespace MarineHell
 
                     if (_self.Minerals() >= i * 100 && _self.SupplyUsed() + (_self.SupplyUsed() / 3) >= _self.SupplyTotal() && _self.SupplyTotal() < 400)
                     {
-                        var buildTile = getBuildTile(worker, UnitType.Terran_Supply_Depot, _self.GetStartLocation());
-                        // and, if found, send the worker to build it (and leave
-                        // others
-                        // alone - break;)
+                        var buildTile = GetBuildTile(worker, UnitType.Terran_Supply_Depot, _self.GetStartLocation());
+                        // and, if found, send the worker to build it (and leave others alone - break;)
                         if (buildTile != TilePosition.Invalid)
                         {
                             worker.Build(UnitType.Terran_Supply_Depot, buildTile);
@@ -288,10 +298,10 @@ namespace MarineHell
                 }
             }
 
-            foreach (var b in BWTA.BaseLocations)
+            foreach (var b in Map.Instance.Bases)
             {
                 // If this is a possible start location,
-                if (b.IsStartLocation)
+                if (b.Starting)
                 {
                     baseLocations.Add(b);
                 }
@@ -302,7 +312,7 @@ namespace MarineHell
             var k = 0;
             foreach (var marine in marines)
             {
-                if (marine.IsAttacking() == false && marine.IsMoving() == false)
+                if (!marine.IsAttacking() && !marine.IsMoving())
                 {
                     if (marines.Count > 50 || _selectedStrategy == Strategy.AttackAtAllCost)
                     {
@@ -316,7 +326,7 @@ namespace MarineHell
                         }
                         if (_enemyBuildingMemory.Count == 0)
                         {
-                            marine.Attack(allLocations[k % allLocations.Count].Position);
+                            marine.Attack(allLocations[k % allLocations.Count].Center);
                         }
                         else
                         {
@@ -330,7 +340,7 @@ namespace MarineHell
                         {
                             if (k < allLocations.Count)
                             {
-                                marine.Attack(allLocations[k].Position);
+                                marine.Attack(allLocations[k].Center);
                             }
                         }
                     }
@@ -340,7 +350,7 @@ namespace MarineHell
 
                         if (bunker != null)
                         {
-                            var path = BWTA.GetShortestPath(bunker.GetTilePosition(), BWTA.GetStartLocation(_game.Self()).TilePosition);
+                            var path = GetShortestPath(bunker.GetTilePosition(), GetStartLocation(_game.Self()).Location);
 
                             if (path.Count > 1)
                             {
@@ -348,12 +358,12 @@ namespace MarineHell
                             }
                             else
                             {
-                                newPos = BWTA.GetNearestChokepoint(marine.GetPosition()).Center;
+                                newPos = GetNearestChokepointCenter(marine.GetPosition());
                             }
                         }
                         else
                         {
-                            newPos = BWTA.GetNearestChokepoint(marine.GetPosition()).Center;
+                            newPos = GetNearestChokepointCenter(marine.GetPosition());
                         }
 
                         marine.Attack(newPos);
@@ -379,7 +389,7 @@ namespace MarineHell
 
             if (_searcher != null && _searcher.IsGatheringMinerals() && _searchingScv < baseLocations.Count && _searchingTimeout % 10 == 0)
             {
-                _searcher.Move(baseLocations[_searchingScv].Position);
+                _searcher.Move(baseLocations[_searchingScv].Center);
                 _searchingScv++;
             }
 
@@ -390,39 +400,33 @@ namespace MarineHell
                 // if this unit is in fact a building
                 if (u.GetUnitType().IsBuilding())
                 {
-                    // check if we have it's position in memory and add it if we
-                    // don't
-                    if (!_enemyBuildingMemory.Contains(u.GetPosition()))
-                        _enemyBuildingMemory.Add(u.GetPosition());
+                    // check if we have it's position in memory and add it if we don't
+                    _enemyBuildingMemory.Add(u.GetPosition());
                 }
             }
 
             // loop over all the positions that we remember
             foreach (var p in _enemyBuildingMemory)
             {
-                // compute the TilePosition corresponding to our remembered Position
-                // p
+                // compute the TilePosition corresponding to our remembered Position p
                 var tileCorrespondingToP = new TilePosition(p.X / 32, p.Y / 32);
 
                 // if that tile is currently visible to us...
                 if (_game.IsVisible(tileCorrespondingToP))
                 {
-
                     // loop over all the visible enemy buildings and find out if at
-                    // least
-                    // one of them is still at that remembered position
+                    // least one of them is still at that remembered position
                     var buildingStillThere = false;
                     foreach (var u in _game.Enemy().GetUnits())
                     {
-                        if ((u.GetUnitType().IsBuilding()) && (u.GetPosition() == p))
+                        if (u.GetUnitType().IsBuilding() && (u.GetPosition() == p))
                         {
                             buildingStillThere = true;
                             break;
                         }
                     }
 
-                    // if there is no more any building, remove that position from
-                    // our memory
+                    // if there is no more any building, remove that position from our memory
                     if (buildingStillThere == false)
                     {
                         _enemyBuildingMemory.Remove(p);
@@ -430,15 +434,12 @@ namespace MarineHell
                     }
                 }
             }
-
-            // draw my units on screen
-            // _game.drawTextScreen(10, 25, units.toString());
         }
 
         // Returns a suitable TilePosition to build a given building type near
         // specified TilePosition aroundTile, or null if not found. (builder
         // parameter is our worker)
-        public TilePosition getBuildTile(Unit builder, UnitType buildingType, TilePosition aroundTile)
+        private TilePosition GetBuildTile(Unit builder, UnitType buildingType, TilePosition aroundTile)
         {
             var ret = TilePosition.Invalid;
             var maxDist = 3;
@@ -522,376 +523,94 @@ namespace MarineHell
             return ret;
         }
 
-        static class BWTA
+        private Position GetNearestChokepointCenter(Position position)
         {
-            internal static Dictionary<Area, Region> _regionMap;
-            internal static Dictionary<ChokePoint, Chokepoint> _chokeMap;
-            internal static Dictionary<Base, BaseLocation> _baseMap;
-
-            public static void Initialize(Game game)
-            {
-                Map.Instance.Initialize(game);
-
-                _regionMap = new Dictionary<Area, Region>();
-                foreach (var a in Map.Instance.Areas)
-                {
-                    _regionMap[a] = new Region(a);
-                }
-
-                _chokeMap = new Dictionary<ChokePoint, Chokepoint>();
-                foreach (var c in Map.Instance.ChokePoints)
-                {
-                    _chokeMap[c] = new Chokepoint(c);
-                }
-
-                _baseMap = new Dictionary<Base, BaseLocation>();
-                foreach (var b in Map.Instance.Bases)
-                {
-                    _baseMap[b] = new BaseLocation(b);
-                }
-            }
-
-            public static List<Region> Regions
-            {
-                get => _regionMap.Values.ToList();
-            }
-
-            public static List<Chokepoint> Chokepoints
-            {
-                get => _chokeMap.Values.ToList();
-            }
-
-            public static List<BaseLocation> BaseLocations
-            {
-                get => _baseMap.Values.ToList();
-            }
-
-            public static List<BaseLocation> StartLocations
-            {
-                get => BaseLocations.Where(x => x.IsStartLocation).ToList();
-            }
-
-            public static BaseLocation GetStartLocation(Player player)
-            {
-                return GetNearestBaseLocation(player.GetStartLocation());
-            }
-
-            public static Region GetRegion(TilePosition tileposition)
-            {
-                return _regionMap[Map.Instance.GetNearestArea(tileposition)];
-            }
-
-            public static Region GetRegion(Position position)
-            {
-                return _regionMap[Map.Instance.GetNearestArea(position.ToWalkPosition())];
-            }
-
-            public static Chokepoint GetNearestChokepoint(TilePosition tileposition)
-            {
-                return GetNearestChokepoint(tileposition.ToPosition());
-            }
-
-            public static Chokepoint GetNearestChokepoint(Position position)
-            {
-                return Enumerable.MinBy(Chokepoints, x => x.Center.GetDistance(position));
-            }
-
-            public static BaseLocation GetNearestBaseLocation(TilePosition tilePosition)
-            {
-                return Enumerable.MinBy(BaseLocations, x => x.TilePosition.GetDistance(tilePosition));
-            }
-
-            public static BaseLocation GetNearestBaseLocation(Position position)
-            {
-                return Enumerable.MinBy(BaseLocations, x => x.Position.GetDistance(position));
-            }
-
-            public static bool IsConnected(TilePosition a, TilePosition b)
-            {
-                return Map.Instance.GetNearestArea(a).AccessibleFrom(Map.Instance.GetNearestArea(b));
-            }
-
-            public static double GetGroundDistance(TilePosition start, TilePosition end)
-            {
-                var path = Map.Instance.GetPath(start.ToPosition(), end.ToPosition(), out var distance);
-                return path.Count > 0 ? distance : -1.0;
-            }
-
-            public static List<TilePosition> GetShortestPath(TilePosition start, TilePosition end)
-            {
-                var shortestPath = new List<TilePosition>();
-
-                var it = Map.Instance.GetPath(start.ToPosition(), end.ToPosition(), out _).GetEnumerator();
-
-                ChokePoint curr = null;
-
-                while (it.MoveNext())
-                {
-                    var next = it.Current;
-                    if (curr != null)
-                    {
-                        var t0 = curr.Center.ToTilePosition();
-                        var t1 = next.Center.ToTilePosition();
-
-                        //trace a ray
-                        var dx = Math.Abs(t1.x - t0.x);
-                        var dy = Math.Abs(t1.y - t0.y);
-                        var x = t0.x;
-                        var y = t0.y;
-                        var n = 1 + dx + dy;
-                        var x_inc = (t1.x > t0.x) ? 1 : -1;
-                        var y_inc = (t1.x > t0.x) ? 1 : -1;
-                        var error = dx - dy;
-
-                        dx *= 2;
-                        dy *= 2;
-
-                        for (; n > 0; --n)
-                        {
-                            shortestPath.Add(new TilePosition(x, y));
-
-                            if (error > 0)
-                            {
-                                x += x_inc;
-                                error -= dy;
-                            }
-                            else
-                            {
-                                y += y_inc;
-                                error += dx;
-                            }
-                        }
-                    }
-
-                    curr = next;
-                }
-
-                return shortestPath;
-            }
+            return _chokePointsCenters.MinBy(x => x.GetDistance(position));
         }
 
-        class Chokepoint
+        private static Base GetStartLocation(Player player)
         {
-            private readonly ChokePoint _chokePoint;
-            private readonly Pair<Position, Position> _sides;
-            private readonly Position _center;
-            private readonly double _width;
+            return GetNearestBaseLocation(player.GetStartLocation());
+        }
 
-            internal Chokepoint(ChokePoint chokePoint)
+        private static Base GetNearestBaseLocation(TilePosition tilePosition)
+        {
+            return Map.Instance.Bases.MinBy(x => x.Location.GetDistance(tilePosition));
+        }
+
+        private static List<TilePosition> GetShortestPath(TilePosition start, TilePosition end)
+        {
+            var shortestPath = new List<TilePosition>();
+
+            var it = Map.Instance.GetPath(start.ToPosition(), end.ToPosition(), out _).GetEnumerator();
+
+            ChokePoint curr = null;
+
+            while (it.MoveNext())
             {
-                _chokePoint = chokePoint;
-                _sides = CalculateSides(chokePoint.Geometry);
-                _center = (_sides.Left + _sides.Right) / 2;
-                _width = _sides.Left.GetDistance(_sides.Right);
-            }
-
-            public Pair<Region, Region> Regions
-            {
-                get => new(BWTA._regionMap[_chokePoint.Areas.Left], BWTA._regionMap[_chokePoint.Areas.Right]);
-            }
-
-            public Pair<Position, Position> Sides
-            {
-                get => _sides;
-            }
-
-            public Position Center
-            {
-                get => _center;
-            }
-
-            public double Width
-            {
-                get => _width;
-            }
-
-            public bool equals(object o)
-            {
-                return o is Chokepoint chokepoint && _chokePoint.Equals(chokepoint._chokePoint);
-            }
-
-            public int hashCode()
-            {
-                return _chokePoint.GetHashCode();
-            }
-
-            private static Pair<Position, Position> CalculateSides(Deque<WalkPosition> wp)
-            {
-                var p1 = wp[0];
-                var p2 = wp[0];
-                var d_max = -1.0;
-
-                for (var i = 0; i < wp.Count; i++)
+                var next = it.Current;
+                if (curr != null)
                 {
-                    for (var j = i + 1; j < wp.Count; j++)
+                    var t0 = curr.Center.ToTilePosition();
+                    var t1 = next.Center.ToTilePosition();
+
+                    //trace a ray
+                    var dx = Math.Abs(t1.x - t0.x);
+                    var dy = Math.Abs(t1.y - t0.y);
+                    var x = t0.x;
+                    var y = t0.y;
+                    var n = 1 + dx + dy;
+                    var x_inc = (t1.x > t0.x) ? 1 : -1;
+                    var y_inc = (t1.x > t0.x) ? 1 : -1;
+                    var error = dx - dy;
+
+                    dx *= 2;
+                    dy *= 2;
+
+                    for (; n > 0; --n)
                     {
-                        var d = wp[i].GetDistance(wp[j]);
-                        if (d > d_max)
+                        shortestPath.Add(new TilePosition(x, y));
+
+                        if (error > 0)
                         {
-                            d_max = d;
-                            p1 = wp[i];
-                            p2 = wp[j];
+                            x += x_inc;
+                            error -= dy;
+                        }
+                        else
+                        {
+                            y += y_inc;
+                            error += dx;
                         }
                     }
                 }
 
-                return new Pair<Position, Position>(p1.ToPosition(), p2.ToPosition());
+                curr = next;
             }
+
+            return shortestPath;
         }
 
-        class Region : IEquatable<Region>
+        private static Pair<Position, Position> CalculateSides(Deque<WalkPosition> wp)
         {
-            private readonly Area _area;
-            private readonly Position _center;
+            var p1 = wp[0];
+            var p2 = wp[0];
+            var d_max = -1.0;
 
-            internal Region(Area area)
+            for (var i = 0; i < wp.Count; i++)
             {
-                _area = area;
-                _center = area.Top.ToPosition();
+                for (var j = i + 1; j < wp.Count; j++)
+                {
+                    var d = wp[i].GetDistance(wp[j]);
+                    if (d > d_max)
+                    {
+                        d_max = d;
+                        p1 = wp[i];
+                        p2 = wp[j];
+                    }
+                }
             }
 
-            public Position Center
-            {
-                get => _center;
-            }
-
-            public List<Chokepoint> Chokepoints
-            {
-                get => _area.ChokePoints.Select(x => BWTA._chokeMap[x]).ToList();
-            }
-
-            public List<BaseLocation> BaseLocations
-            {
-                get => _area.Bases.Select(x => BWTA._baseMap[x]).ToList();
-            }
-
-            public bool IsReachable(Region region)
-            {
-                return _area.AccessibleFrom(region._area);
-            }
-
-            public List<Region> GetReachableRegions()
-            {
-                return _area.AccessibleNeighbours.Select(x => BWTA._regionMap[x]).ToList();
-            }
-
-            public bool Equals(Region other)
-            {
-                return _area.Equals(other._area);
-            }
-
-            public override bool Equals(object o)
-            {
-                return o is Region other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                return _area.GetHashCode();
-            }
-        }
-
-        class BaseLocation : IEquatable<BaseLocation>
-        {
-            private readonly Base _base;
-            private readonly Position _position;
-            private readonly TilePosition _tilePosition;
-            private readonly int _mineralsAmount;
-            private readonly int _gasAmount;
-            private readonly List<Unit> _minerals;
-            private readonly List<Unit> _geysers;
-            private readonly bool _isIsland;
-            private readonly bool _isMineralOnly;
-            private readonly bool _isStartLocation;
-
-            internal BaseLocation(Base base_)
-            {
-                _base = base_;
-                _position = base_.Center;
-                _tilePosition = base_.Location;
-                _mineralsAmount = 1;
-                _gasAmount = 1;
-                _minerals = base_.Minerals.Select(x => x.Unit).ToList();
-                _geysers = base_.Geysers.Select(x => x.Unit).ToList();
-                _isIsland = base_.Area.AccessibleNeighbours.Count == 0;
-                _isMineralOnly = _minerals.Count > 0 && _geysers.Count == 0;
-                _isStartLocation = base_.Starting;
-            }
-
-            public Position Position
-            {
-                get => _position;
-            }
-
-            public TilePosition TilePosition
-            {
-                get => _tilePosition;
-            }
-
-            public Region Region
-            {
-                get => BWTA._regionMap[_base.Area];
-            }
-
-            public int Minerals
-            {
-                get => _mineralsAmount;
-            }
-
-            public int Gas
-            {
-                get => _gasAmount;
-            }
-
-            public List<Unit> GetMinerals()
-            {
-                return _minerals;
-            }
-
-            public List<Unit> GetGeysers()
-            {
-                return _geysers;
-            }
-
-            public double GetGroundDistance(BaseLocation other)
-            {
-                return BWTA.GetGroundDistance(_tilePosition, other._tilePosition);
-            }
-
-            public double GetAirDistance(BaseLocation other)
-            {
-                return _position.GetDistance(other._position);
-            }
-
-            public bool IsIsland
-            {
-                get => _isIsland;
-            }
-
-            public bool IsMineralOnly
-            {
-                get => _isMineralOnly;
-            }
-
-            public bool IsStartLocation
-            {
-                get => _isStartLocation;
-            }
-
-            public bool Equals(BaseLocation other)
-            {
-                return _base.Equals(other._base);
-            }
-
-            public override bool Equals(object o)
-            {
-                return o is BaseLocation other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                return _base.GetHashCode();
-            }
+            return new Pair<Position, Position>(p1.ToPosition(), p2.ToPosition());
         }
 
         private enum Strategy

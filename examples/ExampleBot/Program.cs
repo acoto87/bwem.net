@@ -1,4 +1,4 @@
-﻿namespace MarineHell
+﻿namespace ExampleBot
 {
     public class Program
     {
@@ -6,7 +6,7 @@
         {
             Console.WriteLine("Hello, Bot!");
 
-            var bot = new MarineHell();
+            var bot = new ExampleBot();
             bot.Run();
 
             Console.ReadLine();
