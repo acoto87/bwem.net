@@ -1,4 +1,4 @@
-# bwem.net
+# BWEM.NET
 
 A pure .NET BWEM 1.4 implementation. It's ported from the [BWEM](https://bwem.sourceforge.net/) library.
 
