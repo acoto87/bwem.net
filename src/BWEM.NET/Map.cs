@@ -948,7 +948,7 @@ namespace BWEM.NET
 
             deltasByAscendingAltitude.Sort((p1, p2) => p1.Second.CompareTo(p2.Second));
 
-            // 2) Fill in activeSeaSideList, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
+            // 2) Fill in activeSeaSideMiniTiles, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
             //    It also includes extra border-miniTiles which are considered as seaside miniTiles too.
             var activeSeaSideMiniTiles = new List<ActiveSeaSide>();
 
@@ -965,22 +965,21 @@ namespace BWEM.NET
             }
 
             // 3) Dijkstra's algorithm
+            Span<WalkPosition> deltas = stackalloc WalkPosition[8];
+
             foreach (var deltaAltitude in deltasByAscendingAltitude)
             {
                 var d = deltaAltitude.First;
                 var altitude = deltaAltitude.Second;
 
-                var deltas = new[]
-                {
-                    new WalkPosition(d.x, d.y),
-                    new WalkPosition(-d.x, d.y),
-                    new WalkPosition(d.x, -d.y),
-                    new WalkPosition(-d.x, -d.y),
-                    new WalkPosition(d.y, d.x),
-                    new WalkPosition(-d.y, d.x),
-                    new WalkPosition(d.y, -d.x),
-                    new WalkPosition(-d.y, -d.x)
-                };
+                deltas[0] = new WalkPosition(d.x, d.y);
+                deltas[1] = new WalkPosition(-d.x, d.y);
+                deltas[2] = new WalkPosition(d.x, -d.y);
+                deltas[3] = new WalkPosition(-d.x, -d.y);
+                deltas[4] = new WalkPosition(d.y, d.x);
+                deltas[5] = new WalkPosition(-d.y, d.x);
+                deltas[6] = new WalkPosition(d.y, -d.x);
+                deltas[7] = new WalkPosition(-d.y, -d.x);
 
                 for (var i = 0; i < activeSeaSideMiniTiles.Count; ++i)
                 {
