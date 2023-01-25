@@ -809,7 +809,7 @@ namespace BWEM.NET
                 WalkPosition.Bottom
             };
 
-            var toSearch = new Stack<WalkPosition>();
+            var toSearch = new Queue<WalkPosition>();
             var seaExtent = new List<MiniTile>();
 
             for (var y = 0; y < _walkSize.y; ++y)
@@ -823,7 +823,7 @@ namespace BWEM.NET
                         toSearch.Clear();
                         seaExtent.Clear();
 
-                        toSearch.Push(originWalkPosition);
+                        toSearch.Enqueue(originWalkPosition);
                         seaExtent.Add(originMiniTile);
 
                         originMiniTile.SetSea();
@@ -831,7 +831,7 @@ namespace BWEM.NET
                         var topLeft = originWalkPosition;
                         var bottomRight = originWalkPosition;
 
-                        while (toSearch.TryPop(out var current))
+                        while (toSearch.TryDequeue(out var current))
                         {
                             if (current.x < topLeft.x) topLeft = new WalkPosition(current.x, topLeft.y);
                             if (current.y < topLeft.y) topLeft = new WalkPosition(topLeft.X, current.y);
@@ -846,7 +846,7 @@ namespace BWEM.NET
                                     var nextTile = GetTile(next, CheckMode.NoCheck);
                                     if (nextTile.SeaOrLake)
                                     {
-                                        toSearch.Push(next);
+                                        toSearch.Enqueue(next);
 
                                         if (seaExtent.Count <= LakeMaxMiniTiles)
                                         {
@@ -1025,7 +1025,7 @@ namespace BWEM.NET
                 candidates.Add(m);
             }
 
-            var toVisit = new Stack<WalkPosition>();
+            var toVisit = new Queue<WalkPosition>();
             var visited = new List<WalkPosition>();
             var doors = new List<WalkPosition>();
             var trueDoors = new List<WalkPosition>();
@@ -1060,10 +1060,10 @@ namespace BWEM.NET
                         toVisit.Clear();
                         visited.Clear();
 
-                        toVisit.Push(door);
+                        toVisit.Enqueue(door);
                         visited.Add(door);
 
-                        while (toVisit.TryPop(out var current))
+                        while (toVisit.TryDequeue(out var current))
                         {
                             foreach (var delta in deltas)
                             {
@@ -1078,7 +1078,7 @@ namespace BWEM.NET
                                         {
                                             if (Adjoins8SomeLakeOrNeutral(next))
                                             {
-                                                toVisit.Push(next);
+                                                toVisit.Enqueue(next);
                                                 visited.Add(next);
                                             }
                                         }
@@ -1100,12 +1100,12 @@ namespace BWEM.NET
                             toVisit.Clear();
                             visited.Clear();
 
-                            toVisit.Push(door);
+                            toVisit.Enqueue(door);
                             visited.Add(door);
 
                             var limit = candidate is StaticBuilding ? 10 : 400;
 
-                            while (toVisit.TryPop(out var current) && (visited.Count < limit))
+                            while (toVisit.TryDequeue(out var current) && (visited.Count < limit))
                             {
                                 foreach (var delta in deltas)
                                 {
@@ -1118,7 +1118,7 @@ namespace BWEM.NET
                                             var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
                                             if (tile.Neutral == null)
                                             {
-                                                toVisit.Push(next);
+                                                toVisit.Enqueue(next);
                                                 visited.Add(next);
                                             }
                                         }
@@ -1325,10 +1325,10 @@ namespace BWEM.NET
             var oldAreaId = origin.AreaId;
             origin.ReplaceAreaId(newAreaId);
 
-            var toSearch = new Stack<WalkPosition>();
-            toSearch.Push(position);
+            var toSearch = new Queue<WalkPosition>();
+            toSearch.Enqueue(position);
 
-            while (toSearch.TryPop(out var current))
+            while (toSearch.TryDequeue(out var current))
             {
                 foreach (var delta in deltas)
                 {
@@ -1338,7 +1338,7 @@ namespace BWEM.NET
                         var nextMiniTile = GetTile(next, CheckMode.NoCheck);
                         if (nextMiniTile.AreaId == oldAreaId)
                         {
-                            toSearch.Push(next);
+                            toSearch.Enqueue(next);
                             nextMiniTile.ReplaceAreaId(newAreaId);
                         }
                     }

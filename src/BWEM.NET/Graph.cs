@@ -691,16 +691,16 @@ namespace BWEM.NET
             var nextGroupId = new GroupId(1);
 
             var visited = new HashSet<Area>();
-            var toVisit = new Stack<Area>();
+            var toVisit = new Queue<Area>();
 
             foreach (var area in Areas)
             {
                 if (!visited.Contains(area))
                 {
                     toVisit.Clear();
-                    toVisit.Push(area);
+                    toVisit.Enqueue(area);
 
-                    while (toVisit.TryPop(out var current))
+                    while (toVisit.TryDequeue(out var current))
                     {
                         current.GroupId = nextGroupId;
 
@@ -709,7 +709,7 @@ namespace BWEM.NET
                             if (!visited.Contains(next))
                             {
                                 visited.Add(next);
-                                toVisit.Push(next);
+                                toVisit.Enqueue(next);
                             }
                         }
                     }
