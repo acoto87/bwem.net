@@ -8,8 +8,6 @@
 
             var bot = new ExampleBot();
             bot.Run();
-
-            Console.ReadLine();
         }
     }
 }
