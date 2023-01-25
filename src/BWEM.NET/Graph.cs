@@ -700,10 +700,8 @@ namespace BWEM.NET
                     toVisit.Clear();
                     toVisit.Push(area);
 
-                    while (toVisit.Count > 0)
+                    while (toVisit.TryPop(out var current))
                     {
-                        var current = toVisit.Pop();
-
                         current.GroupId = nextGroupId;
 
                         foreach (var next in current.AccessibleNeighbours)

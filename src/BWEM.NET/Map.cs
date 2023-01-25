@@ -809,7 +809,7 @@ namespace BWEM.NET
                 WalkPosition.Bottom
             };
 
-            var toSearch = new List<WalkPosition>();
+            var toSearch = new Stack<WalkPosition>();
             var seaExtent = new List<MiniTile>();
 
             for (var y = 0; y < _walkSize.y; ++y)
@@ -823,7 +823,7 @@ namespace BWEM.NET
                         toSearch.Clear();
                         seaExtent.Clear();
 
-                        toSearch.Add(originWalkPosition);
+                        toSearch.Push(originWalkPosition);
                         seaExtent.Add(originMiniTile);
 
                         originMiniTile.SetSea();
@@ -831,16 +831,12 @@ namespace BWEM.NET
                         var topLeft = originWalkPosition;
                         var bottomRight = originWalkPosition;
 
-                        while (toSearch.Count > 0)
+                        while (toSearch.TryPop(out var current))
                         {
-                            var current = toSearch[^1];
-
                             if (current.x < topLeft.x) topLeft = new WalkPosition(current.x, topLeft.y);
                             if (current.y < topLeft.y) topLeft = new WalkPosition(topLeft.X, current.y);
                             if (current.x > bottomRight.x) bottomRight = new WalkPosition(current.x, bottomRight.y);
                             if (current.y > bottomRight.y) bottomRight = new WalkPosition(bottomRight.x, current.y);
-
-                            toSearch.RemoveAt(toSearch.Count - 1);
 
                             foreach (var delta in deltas)
                             {
@@ -850,7 +846,7 @@ namespace BWEM.NET
                                     var nextTile = GetTile(next, CheckMode.NoCheck);
                                     if (nextTile.SeaOrLake)
                                     {
-                                        toSearch.Add(next);
+                                        toSearch.Push(next);
 
                                         if (seaExtent.Count <= LakeMaxMiniTiles)
                                         {
@@ -1029,7 +1025,7 @@ namespace BWEM.NET
                 candidates.Add(m);
             }
 
-            var toVisit = new List<WalkPosition>();
+            var toVisit = new Stack<WalkPosition>();
             var visited = new List<WalkPosition>();
             var doors = new List<WalkPosition>();
             var trueDoors = new List<WalkPosition>();
@@ -1064,14 +1060,11 @@ namespace BWEM.NET
                         toVisit.Clear();
                         visited.Clear();
 
-                        toVisit.Add(door);
+                        toVisit.Push(door);
                         visited.Add(door);
 
-                        while (toVisit.Count > 0)
+                        while (toVisit.TryPop(out var current))
                         {
-                            var current = toVisit[^1];
-                            toVisit.RemoveAt(toVisit.Count - 1);
-
                             foreach (var delta in deltas)
                             {
                                 var next = current + delta;
@@ -1085,7 +1078,7 @@ namespace BWEM.NET
                                         {
                                             if (Adjoins8SomeLakeOrNeutral(next))
                                             {
-                                                toVisit.Add(next);
+                                                toVisit.Push(next);
                                                 visited.Add(next);
                                             }
                                         }
@@ -1107,16 +1100,13 @@ namespace BWEM.NET
                             toVisit.Clear();
                             visited.Clear();
 
-                            toVisit.Add(door);
+                            toVisit.Push(door);
                             visited.Add(door);
 
                             var limit = candidate is StaticBuilding ? 10 : 400;
 
-                            while (toVisit.Count > 0 && (visited.Count < limit))
+                            while (toVisit.TryPop(out var current) && (visited.Count < limit))
                             {
-                                var current = toVisit[^1];
-                                toVisit.RemoveAt(toVisit.Count - 1);
-
                                 foreach (var delta in deltas)
                                 {
                                     var next = current + delta;
@@ -1128,7 +1118,7 @@ namespace BWEM.NET
                                             var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
                                             if (tile.Neutral == null)
                                             {
-                                                toVisit.Add(next);
+                                                toVisit.Push(next);
                                                 visited.Add(next);
                                             }
                                         }
@@ -1335,12 +1325,11 @@ namespace BWEM.NET
             var oldAreaId = origin.AreaId;
             origin.ReplaceAreaId(newAreaId);
 
-            var toSearch = new List<WalkPosition>() { position };
-            while (toSearch.Count > 0)
-            {
-                var current = toSearch[^1];
-                toSearch.RemoveAt(toSearch.Count - 1);
+            var toSearch = new Stack<WalkPosition>();
+            toSearch.Push(position);
 
+            while (toSearch.TryPop(out var current))
+            {
                 foreach (var delta in deltas)
                 {
                     var next = current + delta;
@@ -1349,7 +1338,7 @@ namespace BWEM.NET
                         var nextMiniTile = GetTile(next, CheckMode.NoCheck);
                         if (nextMiniTile.AreaId == oldAreaId)
                         {
-                            toSearch.Add(next);
+                            toSearch.Push(next);
                             nextMiniTile.ReplaceAreaId(newAreaId);
                         }
                     }
