@@ -1012,22 +1012,11 @@ namespace BWEM.NET
 
         private void ProcessBlockingNeutrals()
         {
-            var candidates = new List<Neutral>();
-
-            foreach (var s in _staticBuildings)
-            {
-                candidates.Add(s);
-            }
-
-            foreach (var m in _minerals)
-            {
-                candidates.Add(m);
-            }
-
             var toVisit = new Queue<WalkPosition>();
-            var visited = new List<WalkPosition>();
+            var visited = new bool[_walkSize.x, _walkSize.y];
             var doors = new List<WalkPosition>();
             var trueDoors = new List<WalkPosition>();
+            var visitedCount = 0;
 
             Span<WalkPosition> deltas = stackalloc[]
             {
@@ -1036,6 +1025,10 @@ namespace BWEM.NET
                 WalkPosition.Right,
                 WalkPosition.Bottom
             };
+
+            var candidates = new List<Neutral>(_staticBuildings.Count + _minerals.Count);
+            candidates.AddRange(_staticBuildings);
+            candidates.AddRange(_minerals);
 
             foreach (var candidate in candidates)
             {
@@ -1057,17 +1050,18 @@ namespace BWEM.NET
                         doors.Add(door);
 
                         toVisit.Clear();
-                        visited.Clear();
+                        Array.Clear(visited, 0, visited.Length);
 
                         toVisit.Enqueue(door);
-                        visited.Add(door);
+                        visited[door.x, door.y] = true;
+                        visitedCount++;
 
                         while (toVisit.TryDequeue(out var current))
                         {
                             foreach (var delta in deltas)
                             {
                                 var next = current + delta;
-                                if (Valid(next) && !visited.Contains(next))
+                                if (Valid(next) && !visited[next.x, next.y])
                                 {
                                     var miniTile = GetTile(next, CheckMode.NoCheck);
                                     if (miniTile.Walkable)
@@ -1078,7 +1072,8 @@ namespace BWEM.NET
                                             if (Adjoins8SomeLakeOrNeutral(next))
                                             {
                                                 toVisit.Enqueue(next);
-                                                visited.Add(next);
+                                                visited[next.x, next.Y] = true;
+                                                visitedCount++;
                                             }
                                         }
                                     }
@@ -1086,7 +1081,7 @@ namespace BWEM.NET
                             }
                         }
 
-                        border.RemoveAll(w => visited.Contains(w));
+                        border.RemoveAll(w => visited[w.x, w.y]);
                     }
 
                     // 3)  If at least 2 doors, find the true doors in Border: a true door is a door that gives onto an area big enough
@@ -1097,19 +1092,20 @@ namespace BWEM.NET
                         foreach (var door in doors)
                         {
                             toVisit.Clear();
-                            visited.Clear();
+                            Array.Clear(visited, 0, visited.Length);
 
                             toVisit.Enqueue(door);
-                            visited.Add(door);
+                            visited[door.x, door.y] = true;
+                            visitedCount++;
 
                             var limit = candidate is StaticBuilding ? 10 : 400;
 
-                            while (toVisit.TryDequeue(out var current) && (visited.Count < limit))
+                            while (toVisit.TryDequeue(out var current) && (visitedCount < limit))
                             {
                                 foreach (var delta in deltas)
                                 {
                                     var next = current + delta;
-                                    if (Valid(next) && !visited.Contains(next))
+                                    if (Valid(next) && !visited[next.x, next.y])
                                     {
                                         var miniTile = GetTile(next, CheckMode.NoCheck);
                                         if (miniTile.Walkable)
@@ -1118,14 +1114,15 @@ namespace BWEM.NET
                                             if (tile.Neutral == null)
                                             {
                                                 toVisit.Enqueue(next);
-                                                visited.Add(next);
+                                                visited[next.x, next.y] = true;
+                                                visitedCount++;
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            if (visited.Count >= limit)
+                            if (visitedCount >= limit)
                             {
                                 trueDoors.Add(door);
                             }
