@@ -560,24 +560,24 @@ namespace BWEM.NET
 
             var dir8 = new[]
             {
-                PointHelperEx.New<TPosition>(-1, -1),
-                PointHelperEx.New<TPosition>(0, -1),
-                PointHelperEx.New<TPosition>(+1, -1),
+                PointHelper.New<TPosition>(-1, -1),
+                PointHelper.New<TPosition>(0, -1),
+                PointHelper.New<TPosition>(+1, -1),
 
-                PointHelperEx.New<TPosition>(-1, 0),
-                PointHelperEx.New<TPosition>(+1, 0),
+                PointHelper.New<TPosition>(-1, 0),
+                PointHelper.New<TPosition>(+1, 0),
 
-                PointHelperEx.New<TPosition>(-1, +1),
-                PointHelperEx.New<TPosition>(0, +1),
-                PointHelperEx.New<TPosition>(+1, +1)
+                PointHelper.New<TPosition>(-1, +1),
+                PointHelper.New<TPosition>(0, +1),
+                PointHelper.New<TPosition>(+1, +1)
             };
 
             var dir4 = new[]
             {
-                PointHelperEx.New<TPosition>(0, -1),
-                PointHelperEx.New<TPosition>(-1, 0),
-                PointHelperEx.New<TPosition>(+1, 0),
-                PointHelperEx.New<TPosition>(0, +1)
+                PointHelper.New<TPosition>(0, -1),
+                PointHelper.New<TPosition>(-1, 0),
+                PointHelper.New<TPosition>(+1, 0),
+                PointHelper.New<TPosition>(0, +1)
             };
 
             var directions = connect8 ? dir8 : dir4;

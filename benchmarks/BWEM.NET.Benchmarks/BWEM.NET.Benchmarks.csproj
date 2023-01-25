@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" Version="0.13.4" />
-        <PackageReference Include="BWAPI.NET" Version="0.1.6" />
+        <PackageReference Include="BWAPI.NET" Version="0.1.7" />
     </ItemGroup>
 
     <ItemGroup>

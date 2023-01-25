@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="BWAPI.NET" Version="0.1.5" />
+        <PackageReference Include="BWAPI.NET" Version="0.1.7" />
     </ItemGroup>
 
 </Project>
