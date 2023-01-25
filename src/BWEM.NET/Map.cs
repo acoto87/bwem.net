@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using BWAPI.NET;
 using BWGame = BWAPI.NET.Game;
 
@@ -301,6 +302,7 @@ namespace BWEM.NET
         /// <summary>
         /// Returns a Tile, given its position.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
 	    public Tile GetTile(TilePosition p, CheckMode checkMode = CheckMode.Check)
         {
             Debug.Assert((checkMode == CheckMode.NoCheck) || Valid(p));
@@ -310,6 +312,7 @@ namespace BWEM.NET
         /// <summary>
         /// Returns a MiniTile, given its position.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public MiniTile GetTile(WalkPosition p, CheckMode checkMode = CheckMode.Check)
         {
             Debug.Assert((checkMode == CheckMode.NoCheck) || Valid(p));
@@ -444,7 +447,8 @@ namespace BWEM.NET
                 }
             }
 
-            if (GetTile(blockingNeutral.TopLeft).Neutral != null)
+            var tile = GetTile(blockingNeutral.TopLeft);
+            if (tile.Neutral != null)
             {
                 // there remains some blocking Neutrals at the same location
                 return;
@@ -469,7 +473,8 @@ namespace BWEM.NET
             {
                 for (var dx = 0; dx < blockingNeutral.Size.x; ++dx)
                 {
-                    GetTile(blockingNeutral.TopLeft + new TilePosition(dx, dy)).ResetAreaId();
+                    tile = GetTile(blockingNeutral.TopLeft + new TilePosition(dx, dy));
+                    tile.ResetAreaId();
                     SetAreaIdInTile(blockingNeutral.TopLeft + new TilePosition(dx, dy));
                 }
             }
@@ -540,7 +545,8 @@ namespace BWEM.NET
             where TPosition : IPoint<TPosition>
             where TTile : ITile
         {
-            if (findCond(GetTile<TPosition, TTile>(start), start))
+            var startTile = GetTile<TPosition, TTile>(start);
+            if (findCond(startTile, start))
             {
                 return start;
             }
@@ -603,7 +609,8 @@ namespace BWEM.NET
         // Breadth first search in the Map over tiles.
         public TilePosition BreadthFirstSearch(TilePosition start, Func<Tile, TilePosition, bool> findCond, Func<Tile, TilePosition, bool> visitCond, bool connect8 = true)
         {
-            if (findCond(GetTile(start), start))
+            var startTile = GetTile(start);
+            if (findCond(startTile, start))
             {
                 return start;
             }
@@ -665,7 +672,8 @@ namespace BWEM.NET
         // Breadth first search in the Map over minitiles.
         public WalkPosition BreadthFirstSearch(WalkPosition start, Func<MiniTile, WalkPosition, bool> findCond, Func<MiniTile, WalkPosition, bool> visitCond, bool connect8 = true)
         {
-            if (findCond(GetTile(start), start))
+            var startTile = GetTile(start);
+            if (findCond(startTile, start))
             {
                 return start;
             }
@@ -1040,8 +1048,6 @@ namespace BWEM.NET
                 {
                     // 1) Retrieve the Border: the outer border of candidate
                     var border = Ex.OuterMiniTileBorder(candidate.TopLeft, candidate.Size);
-
-                    // TODO: Check!!!
                     border.RemoveAll(w => !Valid(w) || !GetTile(w, CheckMode.NoCheck).Walkable || GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral != null);
 
                     // 2) Find the doors in Border: one door for each connected set of walkable, neighbouring miniTiles.
@@ -1071,9 +1077,11 @@ namespace BWEM.NET
                                 var next = current + delta;
                                 if (Valid(next) && !visited.Contains(next))
                                 {
-                                    if (GetTile(next, CheckMode.NoCheck).Walkable)
+                                    var miniTile = GetTile(next, CheckMode.NoCheck);
+                                    if (miniTile.Walkable)
                                     {
-                                        if (GetTile(new TilePosition(next), CheckMode.NoCheck).Neutral == null)
+                                        var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
+                                        if (tile.Neutral == null)
                                         {
                                             if (Adjoins8SomeLakeOrNeutral(next))
                                             {
@@ -1114,9 +1122,11 @@ namespace BWEM.NET
                                     var next = current + delta;
                                     if (Valid(next) && !visited.Contains(next))
                                     {
-                                        if (GetTile(next, CheckMode.NoCheck).Walkable)
+                                        var miniTile = GetTile(next, CheckMode.NoCheck);
+                                        if (miniTile.Walkable)
                                         {
-                                            if (GetTile(new TilePosition(next), CheckMode.NoCheck).Neutral == null)
+                                            var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
+                                            if (tile.Neutral == null)
                                             {
                                                 toVisit.Add(next);
                                                 visited.Add(next);
@@ -1137,7 +1147,9 @@ namespace BWEM.NET
                     if (trueDoors.Count >= 2)
                     {
                         // Marks pCandidate (and any Neutral stacked with it) as blocking.
-                        for (var neutral = GetTile(candidate.TopLeft).Neutral; neutral != null; neutral = neutral.NextStacked)
+                        var tile = GetTile(candidate.TopLeft);
+
+                        for (var neutral = tile.Neutral; neutral != null; neutral = neutral.NextStacked)
                         {
                             neutral.SetBlocking(trueDoors);
                         }
@@ -1255,7 +1267,8 @@ namespace BWEM.NET
 
         private Pair<AreaId, AreaId> FindNeighboringAreas(WalkPosition p)
         {
-            var result = new Pair<AreaId, AreaId>(0, 0);
+            AreaId area1 = 0;
+            AreaId area2 = 0;
 
             Span<WalkPosition> deltas = stackalloc[]
             {
@@ -1269,25 +1282,25 @@ namespace BWEM.NET
             {
                 if (Valid(p + delta))
                 {
-                    var areaId = GetTile(p + delta, CheckMode.NoCheck).AreaId;
-                    if (areaId > 0)
+                    var miniTile = GetTile(p + delta, CheckMode.NoCheck);
+                    if (miniTile.AreaId > 0)
                     {
-                        if (result.First == 0)
+                        if (area1 == 0)
                         {
-                            result = new Pair<AreaId, AreaId>(areaId, result.Second);
+                            area1 = miniTile.AreaId;
                         }
-                        else if (result.First != areaId)
+                        else if (area1 != miniTile.AreaId)
                         {
-                            if (result.Second == 0 || (areaId < result.Second))
+                            if (area2 == 0 || (miniTile.AreaId < area2))
                             {
-                                result = new Pair<AreaId, AreaId>(result.First, areaId);
+                                area2 = miniTile.AreaId;
                             }
                         }
                     }
                 }
             }
 
-            return result;
+            return new Pair<AreaId, AreaId>(area1, area2);
         }
 
 
@@ -1308,7 +1321,7 @@ namespace BWEM.NET
             return (_mapAreaPairCounter[pair]++ % 2 == 0) ? a : b;
         }
 
-        private void ReplaceAreaIds(WalkPosition p, AreaId newAreaId)
+        private void ReplaceAreaIds(WalkPosition position, AreaId newAreaId)
         {
             Span<WalkPosition> deltas = stackalloc[]
             {
@@ -1318,11 +1331,11 @@ namespace BWEM.NET
                 WalkPosition.Bottom
             };
 
-            var origin = GetTile(p, CheckMode.NoCheck);
+            var origin = GetTile(position, CheckMode.NoCheck);
             var oldAreaId = origin.AreaId;
             origin.ReplaceAreaId(newAreaId);
 
-            var toSearch = new List<WalkPosition>() { p };
+            var toSearch = new List<WalkPosition>() { position };
             while (toSearch.Count > 0)
             {
                 var current = toSearch[^1];
@@ -1333,11 +1346,11 @@ namespace BWEM.NET
                     var next = current + delta;
                     if (Valid(next))
                     {
-                        var Next = GetTile(next, CheckMode.NoCheck);
-                        if (Next.AreaId == oldAreaId)
+                        var nextMiniTile = GetTile(next, CheckMode.NoCheck);
+                        if (nextMiniTile.AreaId == oldAreaId)
                         {
                             toSearch.Add(next);
-                            Next.ReplaceAreaId(newAreaId);
+                            nextMiniTile.ReplaceAreaId(newAreaId);
                         }
                     }
                 }
@@ -1418,14 +1431,14 @@ namespace BWEM.NET
             {
                 for (var dx = 0; dx < 4; ++dx)
                 {
-                    var id = GetTile(new WalkPosition(t) + new WalkPosition(dx, dy), CheckMode.NoCheck).AreaId;
-                    if (id != 0)
+                    var miniTile = GetTile(new WalkPosition(t) + new WalkPosition(dx, dy), CheckMode.NoCheck);
+                    if (miniTile.AreaId != 0)
                     {
                         if (tile.AreaId == 0)
                         {
-                            tile.AreaId = id;
+                            tile.AreaId = miniTile.AreaId;
                         }
-                        else if (tile.AreaId != id)
+                        else if (tile.AreaId != miniTile.AreaId)
                         {
                             tile.AreaId = -1;
                             return;
@@ -1443,15 +1456,16 @@ namespace BWEM.NET
             {
                 for (var dx = 0; dx < 4; ++dx)
                 {
-                    var altitude = GetTile(new WalkPosition(t) + new WalkPosition(dx, dy), CheckMode.NoCheck).Altitude;
-                    if (altitude < minAltitude)
+                    var miniTile = GetTile(new WalkPosition(t) + new WalkPosition(dx, dy), CheckMode.NoCheck);
+                    if (miniTile.Altitude < minAltitude)
                     {
-                        minAltitude = altitude;
+                        minAltitude = miniTile.Altitude;
                     }
                 }
             }
 
-            GetTile(t).MinAltitude = minAltitude;
+            var tile = GetTile(t);
+            tile.MinAltitude = minAltitude;
         }
 
         private bool SeaSide(WalkPosition p)
@@ -1505,12 +1519,14 @@ namespace BWEM.NET
                 var next = p + delta;
                 if (Valid(next))
                 {
-                    if (GetTile(new TilePosition(next), CheckMode.NoCheck).Neutral != null)
+                    var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
+                    if (tile.Neutral != null)
                     {
                         return true;
                     }
 
-                    if (GetTile(next, CheckMode.NoCheck).Lake)
+                    var miniTile = GetTile(next, CheckMode.NoCheck);
+                    if (miniTile.Lake)
                     {
                         return true;
                     }
