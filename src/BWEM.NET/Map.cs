@@ -52,15 +52,13 @@ namespace BWEM.NET
         private List<TilePosition> _startingLocations;
         private List<Pair<Pair<AreaId, AreaId>, WalkPosition>> _rawFrontier;
 
-        private int _tileLinearSize;
         private TilePosition _tileSize;
-
-        private int _walkLinearSize;
         private WalkPosition _walkSize;
 
+        private Tile[] _tiles;
+        private MiniTile[] _miniTiles;
+
         private Position _center;
-        private List<Tile> _tiles;
-        private List<MiniTile> _miniTiles;
 
         private Altitude _maxAltitude;
         private bool _automaticPathUpdate;
@@ -83,7 +81,7 @@ namespace BWEM.NET
         /// </summary>
         public bool Initialized
         {
-            get => _tileLinearSize != 0;
+            get => _tiles != null;
         }
 
         /// <summary>
@@ -151,13 +149,6 @@ namespace BWEM.NET
             get => _maxAltitude;
         }
 
-        // Returns a random position in the Map in pixels.
-        public Position RandomPosition()
-        {
-            var PixelSize = new Position(_tileSize);
-            return new Position(_rnd.Next() % PixelSize.x, _rnd.Next() % PixelSize.y);
-        }
-
         // Returns the number of Bases.
         public int BaseCount
         {
@@ -183,13 +174,13 @@ namespace BWEM.NET
         }
 
         // Provides access to the internal array of Tiles.
-        public List<Tile> Tiles
+        public Tile[] Tiles
         {
             get => _tiles;
         }
 
         // Provides access to the internal array of MiniTiles.
-        public List<MiniTile> MiniTiles
+        public MiniTile[] MiniTiles
         {
             get => _miniTiles;
         }
@@ -213,19 +204,21 @@ namespace BWEM.NET
         public void Initialize(BWGame game)
         {
             _tileSize = new TilePosition(game.MapWidth(), game.MapHeight());
-            _tileLinearSize = _tileSize.x * _tileSize.y;
-            _tiles = new List<Tile>(_tileLinearSize);
-            for (var i = 0; i < _tileLinearSize; i++)
+            _walkSize = new WalkPosition(_tileSize);
+
+            var tilesCount = _tileSize.x * _tileSize.y;
+            var walkTilesCount = _walkSize.x * _walkSize.y;
+
+            _tiles = new Tile[tilesCount];
+            for (var i = 0; i < tilesCount; i++)
             {
-                _tiles.Add(new Tile());
+                _tiles[i] = new Tile();
             }
 
-            _walkSize = new WalkPosition(_tileSize);
-            _walkLinearSize = _walkSize.x * _walkSize.y;
-            _miniTiles = new List<MiniTile>(_walkLinearSize);
-            for (var i = 0; i < _walkLinearSize; i++)
+            _miniTiles = new MiniTile[walkTilesCount];
+            for (var i = 0; i < walkTilesCount; i++)
             {
-                _miniTiles.Add(new MiniTile());
+                _miniTiles[i] = new MiniTile();
             }
 
             _center = new Position(_tileSize.x / 2, _tileSize.y / 2);
@@ -558,29 +551,27 @@ namespace BWEM.NET
             toVisit.Enqueue(start);
             visited.Add(start);
 
-            var dir8 = new[]
-            {
-                PointHelper.New<TPosition>(-1, -1),
-                PointHelper.New<TPosition>(0, -1),
-                PointHelper.New<TPosition>(+1, -1),
+            var directions = connect8
+                ? new[]
+                {
+                    PointHelper.New<TPosition>(-1, -1),
+                    PointHelper.New<TPosition>(0, -1),
+                    PointHelper.New<TPosition>(+1, -1),
 
-                PointHelper.New<TPosition>(-1, 0),
-                PointHelper.New<TPosition>(+1, 0),
+                    PointHelper.New<TPosition>(-1, 0),
+                    PointHelper.New<TPosition>(+1, 0),
 
-                PointHelper.New<TPosition>(-1, +1),
-                PointHelper.New<TPosition>(0, +1),
-                PointHelper.New<TPosition>(+1, +1)
-            };
-
-            var dir4 = new[]
-            {
-                PointHelper.New<TPosition>(0, -1),
-                PointHelper.New<TPosition>(-1, 0),
-                PointHelper.New<TPosition>(+1, 0),
-                PointHelper.New<TPosition>(0, +1)
-            };
-
-            var directions = connect8 ? dir8 : dir4;
+                    PointHelper.New<TPosition>(-1, +1),
+                    PointHelper.New<TPosition>(0, +1),
+                    PointHelper.New<TPosition>(+1, +1)
+                }
+                : new[]
+                {
+                    PointHelper.New<TPosition>(0, -1),
+                    PointHelper.New<TPosition>(-1, 0),
+                    PointHelper.New<TPosition>(+1, 0),
+                    PointHelper.New<TPosition>(0, +1)
+                };
 
             while (toVisit.Count > 0)
             {
@@ -596,7 +587,7 @@ namespace BWEM.NET
                             return next;
                         }
 
-                        if (visitCond(nextTile, next) && !visited.Contains(next))
+                        if (!visited.Contains(next) && visitCond(nextTile, next))
                         {
                             toVisit.Enqueue(next);
                             visited.Add(next);
@@ -607,6 +598,137 @@ namespace BWEM.NET
 
             Debug.Assert(false);
             return start;
+        }
+
+        // Breadth first search in the Map over tiles.
+        public TilePosition BreadthFirstSearch(TilePosition start, Func<Tile, TilePosition, bool> findCond, Func<Tile, TilePosition, bool> visitCond, bool connect8 = true)
+        {
+            if (findCond(GetTile(start), start))
+            {
+                return start;
+            }
+
+            var visited = new bool[_tileSize.x, _tileSize.y];
+            var toVisit = new Queue<TilePosition>();
+
+            toVisit.Enqueue(start);
+            visited[start.x, start.y] = true;
+
+            Span<TilePosition> directions = connect8
+                ? stackalloc[]
+                {
+                    TilePosition.TopLeft,
+                    TilePosition.Top,
+                    TilePosition.TopRight,
+
+                    TilePosition.Left,
+                    TilePosition.Right,
+
+                    TilePosition.BottomLeft,
+                    TilePosition.Bottom,
+                    TilePosition.BottomRight
+                }
+                : stackalloc[]
+                {
+                    TilePosition.Top,
+                    TilePosition.Left,
+                    TilePosition.Right,
+                    TilePosition.Bottom
+                };
+
+            while (toVisit.TryDequeue(out var current))
+            {
+                foreach (var delta in directions)
+                {
+                    var next = current.Add(delta);
+                    if (Valid(next))
+                    {
+                        var nextTile = GetTile(next, CheckMode.NoCheck);
+                        if (findCond(nextTile, next))
+                        {
+                            return next;
+                        }
+
+                        if (!visited[next.x, next.y] && visitCond(nextTile, next))
+                        {
+                            toVisit.Enqueue(next);
+                            visited[next.x, next.y] = true;
+                        }
+                    }
+                }
+            }
+
+            Debug.Assert(false);
+            return start;
+        }
+
+        // Breadth first search in the Map over minitiles.
+        public WalkPosition BreadthFirstSearch(WalkPosition start, Func<MiniTile, WalkPosition, bool> findCond, Func<MiniTile, WalkPosition, bool> visitCond, bool connect8 = true)
+        {
+            if (findCond(GetTile(start), start))
+            {
+                return start;
+            }
+
+            var visited = new bool[_walkSize.x, _walkSize.y];
+            var toVisit = new Queue<WalkPosition>();
+
+            toVisit.Enqueue(start);
+            visited[start.x, start.y] = true;
+
+            Span<WalkPosition> directions = connect8
+                ? stackalloc[]
+                {
+                    WalkPosition.TopLeft,
+                    WalkPosition.Top,
+                    WalkPosition.TopRight,
+
+                    WalkPosition.Left,
+                    WalkPosition.Right,
+
+                    WalkPosition.BottomLeft,
+                    WalkPosition.Bottom,
+                    WalkPosition.BottomRight
+                }
+                : stackalloc[]
+                {
+                    WalkPosition.Top,
+                    WalkPosition.Left,
+                    WalkPosition.Right,
+                    WalkPosition.Bottom
+                };
+
+            while (toVisit.TryDequeue(out var current))
+            {
+                foreach (var delta in directions)
+                {
+                    var next = current.Add(delta);
+                    if (Valid(next))
+                    {
+                        var nextTile = GetTile(next, CheckMode.NoCheck);
+                        if (findCond(nextTile, next))
+                        {
+                            return next;
+                        }
+
+                        if (!visited[next.x, next.y] && visitCond(nextTile, next))
+                        {
+                            toVisit.Enqueue(next);
+                            visited[next.x, next.y] = true;
+                        }
+                    }
+                }
+            }
+
+            Debug.Assert(false);
+            return start;
+        }
+
+        // Returns a random position in the Map in pixels.
+        public Position RandomPosition()
+        {
+            var PixelSize = new Position(_tileSize);
+            return new Position(_rnd.Next() % PixelSize.x, _rnd.Next() % PixelSize.y);
         }
 
         // Computes walkability, buildability and groundHeight and doodad information, using BWAPI corresponding functions
@@ -671,12 +793,12 @@ namespace BWEM.NET
 
         private void DecideSeasOrLakes()
         {
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(0, -1),
-                new WalkPosition(-1, 0),
-                new WalkPosition(+1, 0),
-                new WalkPosition(0, +1)
+                WalkPosition.Top,
+                WalkPosition.Left,
+                WalkPosition.Right,
+                WalkPosition.Bottom
             };
 
             var toSearch = new List<WalkPosition>();
@@ -795,13 +917,14 @@ namespace BWEM.NET
             }
         }
 
-        // Assigns MiniTile::m_altitude foar each miniTile having AltitudeMissing()
-        // Cf. MiniTile::Altitude() for meaning of altitude_t.
-        // Altitudes are computed using the straightforward Dijkstra's algorithm : the lower ones are computed first, starting from the seaside-miniTiles neighbours.
-        // The point here is to precompute all possible altitudes for all possible tiles, and sort them.
+        /// <summary>
+        /// Assigns <see cref="MiniTile.Altitude"/> for each miniTile having <seealso cref="MiniTile.AltitudeMissing"/> == true
+        /// Altitudes are computed using the straightforward Dijkstra's algorithm : the lower ones are computed first, starting from the seaside-miniTiles neighbours.
+        /// The point here is to precompute all possible altitudes for all possible tiles, and sort them.
+        /// </summary>
         private void ComputeAltitude()
         {
-            const int AltitudeScale = 8; // 8 provides a pixel definition for altitude_t, since altitudes are computed from miniTiles which are 8x8 pixels
+            const int AltitudeScale = 8; // 8 provides a pixel definition for Altitude, since altitudes are computed from miniTiles which are 8x8 pixels
 
             // 1) Fill in and sort DeltasByAscendingAltitude
             var range = Math.Max(_walkSize.x, _walkSize.y) / 2 + 3; // should suffice for maps with no Sea.
@@ -821,9 +944,9 @@ namespace BWEM.NET
 
             deltasByAscendingAltitude.Sort((p1, p2) => p1.Second.CompareTo(p2.Second));
 
-            // 2) Fill in ActiveSeaSideList, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
+            // 2) Fill in activeSeaSideList, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
             //    It also includes extra border-miniTiles which are considered as seaside miniTiles too.
-            var activeSeaSideList = new List<ActiveSeaSide>();
+            var activeSeaSideMiniTiles = new List<ActiveSeaSide>();
 
             for (var y = -1; y <= _walkSize.y; ++y)
             {
@@ -832,7 +955,7 @@ namespace BWEM.NET
                     var w = new WalkPosition(x, y);
                     if (!Valid(w) || SeaSide(w))
                     {
-                        activeSeaSideList.Add(new ActiveSeaSide(w, 0));
+                        activeSeaSideMiniTiles.Add(new ActiveSeaSide(w, 0));
                     }
                 }
             }
@@ -855,13 +978,13 @@ namespace BWEM.NET
                     new WalkPosition(-d.y, -d.x)
                 };
 
-                for (var i = 0; i < activeSeaSideList.Count; ++i)
+                for (var i = 0; i < activeSeaSideMiniTiles.Count; ++i)
                 {
-                    var current = activeSeaSideList[i];
+                    var current = activeSeaSideMiniTiles[i];
 
                     if (altitude - current.LastAltitudeGenerated >= 2 * AltitudeScale) // optimization : once a seaside miniTile verifies this condition,
                     {
-                        activeSeaSideList.FastRemoveAt(i--); // we can throw it away as it will not generate min altitudes anymore
+                        activeSeaSideMiniTiles.FastRemoveAt(i--); // we can throw it away as it will not generate min altitudes anymore
                     }
                     else
                     {
@@ -903,26 +1026,26 @@ namespace BWEM.NET
             var doors = new List<WalkPosition>();
             var trueDoors = new List<WalkPosition>();
 
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(0, -1),
-                new WalkPosition(-1, 0),
-                new WalkPosition(+1, 0),
-                new WalkPosition(0, +1)
+                WalkPosition.Top,
+                WalkPosition.Left,
+                WalkPosition.Right,
+                WalkPosition.Bottom
             };
 
             foreach (var candidate in candidates)
             {
                 if (candidate.NextStacked != null) // in the case where several neutrals are stacked, we only consider the top one
                 {
-                    // 1)  Retreave the Border: the outer border of pCandidate
+                    // 1) Retrieve the Border: the outer border of candidate
                     var border = Ex.OuterMiniTileBorder(candidate.TopLeft, candidate.Size);
 
                     // TODO: Check!!!
                     border.RemoveAll(w => !Valid(w) || !GetTile(w, CheckMode.NoCheck).Walkable || GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral != null);
 
-                    // 2)  Find the doors in Border: one door for each connected set of walkable, neighbouring miniTiles.
-                    //     The searched connected miniTiles all have to be next to some lake or some static building, though they can't be part of one.
+                    // 2) Find the doors in Border: one door for each connected set of walkable, neighbouring miniTiles.
+                    //    The searched connected miniTiles all have to be next to some lake or some static building, though they can't be part of one.
                     doors.Clear();
 
                     while (border.Count > 0)
@@ -1014,9 +1137,9 @@ namespace BWEM.NET
                     if (trueDoors.Count >= 2)
                     {
                         // Marks pCandidate (and any Neutral stacked with it) as blocking.
-                        for (var pNeutral = GetTile(candidate.TopLeft).Neutral; pNeutral != null; pNeutral = pNeutral.NextStacked)
+                        for (var neutral = GetTile(candidate.TopLeft).Neutral; neutral != null; neutral = neutral.NextStacked)
                         {
-                            pNeutral.SetBlocking(trueDoors);
+                            neutral.SetBlocking(trueDoors);
                         }
 
                         // Marks all the miniTiles of pCandidate as blocked.
@@ -1134,12 +1257,12 @@ namespace BWEM.NET
         {
             var result = new Pair<AreaId, AreaId>(0, 0);
 
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(0, -1),
-                new WalkPosition(-1, 0),
-                new WalkPosition(+1, 0),
-                new WalkPosition(0, +1)
+                WalkPosition.Top,
+                WalkPosition.Left,
+                WalkPosition.Right,
+                WalkPosition.Bottom
             };
 
             foreach (var delta in deltas)
@@ -1187,12 +1310,12 @@ namespace BWEM.NET
 
         private void ReplaceAreaIds(WalkPosition p, AreaId newAreaId)
         {
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(0, -1),
-                new WalkPosition(-1, 0),
-                new WalkPosition(+1, 0),
-                new WalkPosition(0, +1)
+                WalkPosition.Top,
+                WalkPosition.Left,
+                WalkPosition.Right,
+                WalkPosition.Bottom
             };
 
             var origin = GetTile(p, CheckMode.NoCheck);
@@ -1239,14 +1362,14 @@ namespace BWEM.NET
         }
 
         // Initializes m_Graph with the valid and big enough areas in TempAreaList.
-        private void CreateAreas(List<TempAreaInfo> TempAreaList)
+        private void CreateAreas(List<TempAreaInfo> tempAreas)
         {
             var areas = new List<Pair<WalkPosition, int>>();
 
             AreaId newAreaId = 1;
             AreaId newTinyAreaId = -2;
 
-            foreach (var tempArea in TempAreaList)
+            foreach (var tempArea in tempAreas)
             {
                 if (tempArea.Valid)
                 {
@@ -1338,12 +1461,12 @@ namespace BWEM.NET
                 return false;
             }
 
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(0, -1),
-                new WalkPosition(-1, 0),
-                new WalkPosition(+1, 0),
-                new WalkPosition(0, +1)
+                WalkPosition.Top,
+                WalkPosition.Left,
+                WalkPosition.Right,
+                WalkPosition.Bottom
             };
 
             foreach (var delta in deltas)
@@ -1363,18 +1486,18 @@ namespace BWEM.NET
 
         private bool Adjoins8SomeLakeOrNeutral(WalkPosition p)
         {
-            var deltas = new[]
+            Span<WalkPosition> deltas = stackalloc[]
             {
-                new WalkPosition(-1, -1),
-                new WalkPosition(0, -1),
-                new WalkPosition(+1, -1),
+                WalkPosition.TopLeft,
+                WalkPosition.Top,
+                WalkPosition.TopRight,
 
-                new WalkPosition(-1,  0),
-                new WalkPosition(+1,  0),
+                WalkPosition.Left,
+                WalkPosition.Right,
 
-                new WalkPosition(-1, +1),
-                new WalkPosition(0, +1),
-                new WalkPosition(+1, +1)
+                WalkPosition.BottomLeft,
+                WalkPosition.Bottom,
+                WalkPosition.BottomRight
             };
 
             foreach (var delta in deltas)
@@ -1490,12 +1613,12 @@ namespace BWEM.NET
                 miniTile.AreaId = _id;
             }
 
-            public void Merge(TempAreaInfo absorbed)
+            public void Merge(TempAreaInfo other)
             {
-                Debug.Assert(_valid && absorbed._valid);
-                Debug.Assert(_size >= absorbed._size);
-                _size += absorbed._size;
-                absorbed._valid = false;
+                Debug.Assert(_valid && other._valid);
+                Debug.Assert(_size >= other._size);
+                _size += other._size;
+                other._valid = false;
             }
         }
     }
