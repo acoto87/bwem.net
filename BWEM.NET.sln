@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarineHell", "examples\Mari
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleBot", "examples\ExampleBot\ExampleBot.csproj", "{74DD7932-831E-450E-9CF3-C11F03BDF96D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{093EE226-EF71-4511-8B77-C82786B729EC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BWEM.NET.Benchmarks", "benchmarks\BWEM.NET.Benchmarks\BWEM.NET.Benchmarks.csproj", "{91EEFEE7-30CB-4B10-89BF-10966DC4E89A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +35,10 @@ Global
 		{74DD7932-831E-450E-9CF3-C11F03BDF96D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{74DD7932-831E-450E-9CF3-C11F03BDF96D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{74DD7932-831E-450E-9CF3-C11F03BDF96D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91EEFEE7-30CB-4B10-89BF-10966DC4E89A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91EEFEE7-30CB-4B10-89BF-10966DC4E89A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91EEFEE7-30CB-4B10-89BF-10966DC4E89A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91EEFEE7-30CB-4B10-89BF-10966DC4E89A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +47,7 @@ Global
 		{1CE05C96-D0D7-4B4B-8398-0D9E9513588B} = {32EB5CF2-A7FC-4BF8-B4CD-DFD25C5DAAD3}
 		{335E84DB-EA71-44C8-9D36-87B4AF49D74E} = {D8AAAB0B-705E-4F9E-91CD-B4B72B83A510}
 		{74DD7932-831E-450E-9CF3-C11F03BDF96D} = {D8AAAB0B-705E-4F9E-91CD-B4B72B83A510}
+		{91EEFEE7-30CB-4B10-89BF-10966DC4E89A} = {093EE226-EF71-4511-8B77-C82786B729EC}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {11897D2B-C662-4D09-ADBA-96DFBEF99ACF}
