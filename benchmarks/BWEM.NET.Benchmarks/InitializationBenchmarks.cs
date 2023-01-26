@@ -9,7 +9,18 @@ namespace BWEM.NET.Benchmarks
     public class InitializationBenchmarks
     {
         private const string ResourcesFolder = "Resources";
-        private const string TestFileName = "(2)Breaking Point.scx_frame0_buffer.bin";
+
+        // private const string TestMapName = "(2)Astral Balance.scm_frame0_buffer.bin";
+        // private const string TestMapName = "(2)Breaking Point.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(2)Isolation.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(2)Crystallis.scm_frame0_buffer.bin";
+        // private const string TestMapName = "(3)Stepping Stones.scm_frame0_buffer.bin";
+        // private const string TestMapName = "(4)Arctic Station.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(4)Space Debris.scm_frame0_buffer.bin";
+        // private const string TestMapName = "(5)Twilight Star.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(6)Sapphire Isles.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(7)Black Lotus.scx_frame0_buffer.bin";
+        private const string TestMapName = "(8)Frozen Sea.scx_frame0_buffer.bin";
 
         private MemoryMappedFile _mmf;
         private MemoryMappedViewAccessor _gameViewAccessor;
@@ -18,7 +29,7 @@ namespace BWEM.NET.Benchmarks
         [GlobalSetup]
         public void Setup()
         {
-            _mmf = GetMemoryMappedFileForMap(Path.Combine(ResourcesFolder, TestFileName));
+            _mmf = GetMemoryMappedFileForMap(Path.Combine(ResourcesFolder, TestMapName));
             _gameViewAccessor = _mmf.CreateViewAccessor(0, ClientData.GameData_.Size, MemoryMappedFileAccess.ReadWrite);
             _game = new Game(new ClientData(_gameViewAccessor));
             _game.Init();
