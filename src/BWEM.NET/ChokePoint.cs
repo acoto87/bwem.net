@@ -54,9 +54,6 @@ namespace BWEM.NET
         {
             Debug.Assert(geometry.Count > 0);
 
-            _nodes = new WalkPosition[(int)Node.node_count];
-            _nodesInArea = new Pair<WalkPosition, WalkPosition>[(int)Node.node_count];
-
             _graph = graph;
             _index = idx;
             _areas = new Pair<Area, Area>(area1, area2);
@@ -66,49 +63,64 @@ namespace BWEM.NET
             _pseudo = blockingNeutral != null;
 
             // Ensures that in the case where several neutrals are stacked, m_pBlockingNeutral points to the bottom one:
-	        if (_blockingNeutral != null)
+            if (_blockingNeutral != null)
             {
-                _blockingNeutral = _graph.Map.GetTile(_blockingNeutral.TopLeft).Neutral;
+                var tile = _graph.Map.GetTile(_blockingNeutral.TopLeft);
+                _blockingNeutral = tile.Neutral;
             }
 
+            _nodes = new WalkPosition[(int)Node.NodeCount];
             _nodes[(int)Node.End1] = geometry[0];
             _nodes[(int)Node.End2] = geometry[geometry.Count - 1];
 
+            _nodesInArea = new Pair<WalkPosition, WalkPosition>[(int)Node.NodeCount];
+            for (var k = 0; k < (int)Node.NodeCount; ++k)
+            {
+                _nodesInArea[k] = new Pair<WalkPosition, WalkPosition>(new WalkPosition(0, 0), new WalkPosition(0, 0));
+            }
+
             var i = geometry.Count / 2;
-            while ((i > 0) && (_graph.Map.GetTile(geometry[i-1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
+            while ((i > 0) && (_graph.Map.GetTile(geometry[i - 1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
             {
                 --i;
             }
 
-            while ((i < (int)geometry.Count-1) && (_graph.Map.GetTile(geometry[i+1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
+            while ((i < geometry.Count - 1) && (_graph.Map.GetTile(geometry[i + 1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
             {
                 ++i;
             }
 
             _nodes[(int)Node.Middle] = geometry[i];
 
-            for (var n = 0 ; n < (int)Node.node_count ; ++n)
+            for (var n = 0; n < (int)Node.NodeCount; ++n)
             {
-                foreach (var pArea in new[] {area1, area2})
+                foreach (var area in new[] { area1, area2 })
                 {
-                    var nodeInArea = (pArea == _areas.First) ? _nodesInArea[n].First : _nodesInArea[n].Second;
+                    var nodeInArea = (area == _areas.First) ? _nodesInArea[n].First : _nodesInArea[n].Second;
                     nodeInArea = _graph.Map.BreadthFirstSearch(
                         _nodes[n],
-                        (MiniTile miniTile, WalkPosition w) => (miniTile.AreaId == pArea.Id) && _graph.Map.GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral == null, // findCond
-                        (MiniTile miniTile, WalkPosition w) => (miniTile.AreaId == pArea.Id) || (Blocked && (miniTile.Blocked || _graph.Map.GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral != null)) // visitCond
+                        (MiniTile miniTile, WalkPosition w) => (miniTile.AreaId == area.Id) && _graph.Map.GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral == null, // findCond
+                        (MiniTile miniTile, WalkPosition w) => (miniTile.AreaId == area.Id) || (Blocked && (miniTile.Blocked || _graph.Map.GetTile(new TilePosition(w), CheckMode.NoCheck).Neutral != null)) // visitCond
                     );
+
+                    // Note: In the original C++ code, "nodeInArea" is a reference to a "WalkPosition" in
+                    // "nodesInArea" which changes! Change that object here (after the call to
+                    // "breadthFirstSearch")...
+                    _nodesInArea[n] = area == area1
+                        ? new Pair<WalkPosition, WalkPosition>(nodeInArea, _nodesInArea[n].Second)
+                        : new Pair<WalkPosition, WalkPosition>(_nodesInArea[n].First, nodeInArea);
                 }
             }
         }
 
         // Tells whether this ChokePoint is a pseudo ChokePoint, i.e., it was created on top of a blocking Neutral.
-	    public bool IsPseudo
+        public bool IsPseudo
         {
             get => _pseudo;
         }
 
         // Returns the two Areas of this ChokePoint.
-	    public Pair<Area, Area> Areas
+        public Pair<Area, Area> Areas
         {
             get => _areas;
         }
@@ -160,7 +172,7 @@ namespace BWEM.NET
         // Note: the returned value is contained in Geometry()
         public WalkPosition Pos(Node n)
         {
-            Debug.Assert(n < Node.node_count);
+            Debug.Assert(n < Node.NodeCount);
             return _nodes[(int)n];
         }
 
@@ -169,11 +181,11 @@ namespace BWEM.NET
         public WalkPosition PosInArea(Node n, Area pArea)
         {
             Debug.Assert((pArea == _areas.First) || (pArea == _areas.Second));
-	        return (pArea == _areas.First) ? _nodesInArea[(int)n].First : _nodesInArea[(int)n].Second;
+            return (pArea == _areas.First) ? _nodesInArea[(int)n].First : _nodesInArea[(int)n].Second;
         }
 
         // If AccessibleFrom(cp) == false, returns -1.
-	    // Otherwise, returns the ground distance in pixels between Center() and cp->Center().
+        // Otherwise, returns the ground distance in pixels between Center() and cp->Center().
         // Note: if this == cp, returns 0.
         // Time complexity: O(1)
         // Note: Corresponds to the length in pixels of GetPathTo(cp). So it suffers from the same lack of accuracy.
@@ -245,7 +257,7 @@ namespace BWEM.NET
             End1,
             Middle,
             End2,
-            node_count
+            NodeCount
         };
     }
 

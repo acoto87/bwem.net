@@ -261,10 +261,10 @@ namespace BWEM.NET
                 }
             }
 
-            var pseudoChokePointsToCreate = blockingNeutrals.Count(n => n.NextStacked == null);
+            // var pseudoChokePointsToCreate = blockingNeutrals.Count(n => n.NextStacked == null);
 
             // 1) Size the matrix
-            _chokePointsMatrix = new List<List<List<ChokePoint>>>(AreasCount + 1) { null };
+            _chokePointsMatrix = new List<List<List<ChokePoint>>>(AreasCount) { null };
             for (var id = 1; id <= AreasCount; ++id)
             {
                 var subList = new List<List<ChokePoint>>(id);
@@ -528,7 +528,7 @@ namespace BWEM.NET
                 {
                     if (cp == startCP)
                     {
-                        break;
+                        break; // breaks symmetry
                     }
 
                     targets.Add(cp);
@@ -545,7 +545,7 @@ namespace BWEM.NET
                     {
                         SetDistance(startCP, targets[i], newDist);
 
-                        var path = new CPPath() { startCP };
+                        var path = new CPPath() { targets[i] };
 
                         // Collect the intermediate ChokePoints (in the reverse order) and insert them into Path:
                         for (var prevCP = targets[i].PathBackTrace; prevCP != startCP; prevCP = prevCP.PathBackTrace)
@@ -553,7 +553,8 @@ namespace BWEM.NET
                             path.Add(prevCP);
                         }
 
-                        path.Add(targets[i]);
+                        path.Add(startCP);
+                        path.Reverse();
 
                         SetPath(startCP, targets[i], path);
                     }
@@ -603,7 +604,7 @@ namespace BWEM.NET
         private List<int> ComputeDistances(ChokePoint start, List<ChokePoint> targets)
         {
             var distanceToTargets = new List<int>(targets.Count);
-            distanceToTargets.AddRepeat(targets.Count, -1);
+            distanceToTargets.AddRepeat(targets.Count, 0);
 
             var remainingTargets = targets.Count;
 
@@ -675,7 +676,7 @@ namespace BWEM.NET
                 }
             }
 
-            Debug.Assert(remainingTargets == 0);
+            // Debug.Assert(remainingTargets == 0);
 
             return distanceToTargets;
         }
@@ -691,16 +692,16 @@ namespace BWEM.NET
             var nextGroupId = new GroupId(1);
 
             var visited = new HashSet<Area>();
-            var toVisit = new Queue<Area>();
+            var toVisit = new Stack<Area>();
 
             foreach (var area in Areas)
             {
                 if (!visited.Contains(area))
                 {
                     toVisit.Clear();
-                    toVisit.Enqueue(area);
+                    toVisit.Push(area);
 
-                    while (toVisit.TryDequeue(out var current))
+                    while (toVisit.TryPop(out var current))
                     {
                         current.GroupId = nextGroupId;
 
@@ -709,7 +710,7 @@ namespace BWEM.NET
                             if (!visited.Contains(next))
                             {
                                 visited.Add(next);
-                                toVisit.Enqueue(next);
+                                toVisit.Push(next);
                             }
                         }
                     }
@@ -727,10 +728,16 @@ namespace BWEM.NET
 
         private Area MainArea(TilePosition topLeft, TilePosition size)
         {
-            var areaFreq = new Dictionary<Area, int>();
+            // graph.cpp:30:Area * mainArea(MapImpl * pMap, TilePosition topLeft, TilePosition size)
+            // Note: The original C++ code appears to return the last discovered area instead of the area with
+            // the highest frequency.
+            // Bytekeeper: Further analysis shows there is usually one exactly one area, so we just return thatv
+            // TODO: Determine if we desire the last discovered area or the area with the highest frequency.
+
+            // var areaFreq = new Dictionary<Area, int>();
 
             Area mostFreqArea = null;
-            var mostFreq = 0;
+            // var mostFreq = 0;
 
             for (var dy = 0 ; dy < size.y ; ++dy)
             {
@@ -739,18 +746,20 @@ namespace BWEM.NET
                     var area = _map.GetArea(topLeft + new TilePosition(dx, dy));
                     if (area != null)
                     {
-                        if (!areaFreq.ContainsKey(area))
-                        {
-                            areaFreq.Add(area, 0);
-                        }
+                        return area;
 
-                        areaFreq[area]++;
+                        // if (!areaFreq.ContainsKey(area))
+                        // {
+                        //     areaFreq.Add(area, 0);
+                        // }
 
-                        if (areaFreq[area] > mostFreq)
-                        {
-                            mostFreqArea = area;
-                            mostFreq = areaFreq[area];
-                        }
+                        // areaFreq[area]++;
+
+                        // if (areaFreq[area] > mostFreq)
+                        // {
+                        //     mostFreqArea = area;
+                        //     mostFreq = areaFreq[area];
+                        // }
                     }
                 }
             }

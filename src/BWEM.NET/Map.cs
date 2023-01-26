@@ -11,6 +11,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -552,9 +553,9 @@ namespace BWEM.NET
             }
 
             var visited = new HashSet<TPosition>();
-            var toVisit = new Queue<TPosition>();
+            var toVisit = new Stack<TPosition>();
 
-            toVisit.Enqueue(start);
+            toVisit.Push(start);
             visited.Add(start);
 
             var directions = connect8
@@ -579,9 +580,8 @@ namespace BWEM.NET
                     PointHelper.New<TPosition>(0, +1)
                 };
 
-            while (toVisit.Count > 0)
+            while (toVisit.TryPop(out var current))
             {
-                var current = toVisit.Dequeue();
                 foreach (var delta in directions)
                 {
                     var next = current.Add(delta);
@@ -595,7 +595,7 @@ namespace BWEM.NET
 
                         if (!visited.Contains(next) && visitCond(nextTile, next))
                         {
-                            toVisit.Enqueue(next);
+                            toVisit.Push(next);
                             visited.Add(next);
                         }
                     }
@@ -679,9 +679,9 @@ namespace BWEM.NET
             }
 
             var visited = new bool[_walkSize.x, _walkSize.y];
-            var toVisit = new Queue<WalkPosition>();
+            var toVisit = new Stack<WalkPosition>();
 
-            toVisit.Enqueue(start);
+            toVisit.Push(start);
             visited[start.x, start.y] = true;
 
             Span<WalkPosition> directions = connect8
@@ -706,7 +706,7 @@ namespace BWEM.NET
                     WalkPosition.Bottom
                 };
 
-            while (toVisit.TryDequeue(out var current))
+            while (toVisit.TryPop(out var current))
             {
                 foreach (var delta in directions)
                 {
@@ -721,7 +721,7 @@ namespace BWEM.NET
 
                         if (!visited[next.x, next.y] && visitCond(nextTile, next))
                         {
-                            toVisit.Enqueue(next);
+                            toVisit.Push(next);
                             visited[next.x, next.y] = true;
                         }
                     }
@@ -941,12 +941,14 @@ namespace BWEM.NET
                 {
                     if (dx != 0 || dy != 0)
                     {
-                        deltasByAscendingAltitude.Add(new Pair<WalkPosition, Altitude>(new WalkPosition(dx, dy), new Altitude((short)(0.5 + Ex.Norm(dx, dy) * AltitudeScale))));
+                        deltasByAscendingAltitude.Add(new Pair<WalkPosition, Altitude>(new WalkPosition(dx, dy), new Altitude((short)Math.Round(Ex.Norm(dx, dy) * AltitudeScale, MidpointRounding.AwayFromZero))));
                     }
                 }
             }
 
-            deltasByAscendingAltitude.Sort((p1, p2) => p1.Second.CompareTo(p2.Second));
+            // NOTE: Need OrderBy for a stable sort implementation
+            deltasByAscendingAltitude = deltasByAscendingAltitude.OrderBy(x => x.Second).ToList();
+            // deltasByAscendingAltitude.Sort((p1, p2) => p1.Second.CompareTo(p2.Second));
 
             // 2) Fill in activeSeaSideMiniTiles, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
             //    It also includes extra border-miniTiles which are considered as seaside miniTiles too.
@@ -1012,7 +1014,11 @@ namespace BWEM.NET
 
         private void ProcessBlockingNeutrals()
         {
-            var toVisit = new Queue<WalkPosition>();
+            var candidates = new List<Neutral>(_staticBuildings.Count + _minerals.Count);
+            candidates.AddRange(_staticBuildings);
+            candidates.AddRange(_minerals);
+
+            var toVisit = new Stack<WalkPosition>();
             var visited = new bool[_walkSize.x, _walkSize.y];
             var doors = new List<WalkPosition>();
             var trueDoors = new List<WalkPosition>();
@@ -1026,13 +1032,9 @@ namespace BWEM.NET
                 WalkPosition.Bottom
             };
 
-            var candidates = new List<Neutral>(_staticBuildings.Count + _minerals.Count);
-            candidates.AddRange(_staticBuildings);
-            candidates.AddRange(_minerals);
-
             foreach (var candidate in candidates)
             {
-                if (candidate.NextStacked != null) // in the case where several neutrals are stacked, we only consider the top one
+                if (candidate.NextStacked == null) // in the case where several neutrals are stacked, we only consider the top one
                 {
                     // 1) Retrieve the Border: the outer border of candidate
                     var border = Ex.OuterMiniTileBorder(candidate.TopLeft, candidate.Size);
@@ -1052,11 +1054,11 @@ namespace BWEM.NET
                         toVisit.Clear();
                         Array.Clear(visited, 0, visited.Length);
 
-                        toVisit.Enqueue(door);
+                        toVisit.Push(door);
                         visited[door.x, door.y] = true;
-                        visitedCount++;
+                        visitedCount = 1;
 
-                        while (toVisit.TryDequeue(out var current))
+                        while (toVisit.TryPop(out var current))
                         {
                             foreach (var delta in deltas)
                             {
@@ -1071,7 +1073,7 @@ namespace BWEM.NET
                                         {
                                             if (Adjoins8SomeLakeOrNeutral(next))
                                             {
-                                                toVisit.Enqueue(next);
+                                                toVisit.Push(next);
                                                 visited[next.x, next.Y] = true;
                                                 visitedCount++;
                                             }
@@ -1094,13 +1096,13 @@ namespace BWEM.NET
                             toVisit.Clear();
                             Array.Clear(visited, 0, visited.Length);
 
-                            toVisit.Enqueue(door);
+                            toVisit.Push(door);
                             visited[door.x, door.y] = true;
-                            visitedCount++;
+                            visitedCount = 1;
 
                             var limit = candidate is StaticBuilding ? 10 : 400;
 
-                            while (toVisit.TryDequeue(out var current) && (visitedCount < limit))
+                            while (toVisit.TryPop(out var current) && (visitedCount < limit))
                             {
                                 foreach (var delta in deltas)
                                 {
@@ -1113,7 +1115,7 @@ namespace BWEM.NET
                                             var tile = GetTile(new TilePosition(next), CheckMode.NoCheck);
                                             if (tile.Neutral == null)
                                             {
-                                                toVisit.Enqueue(next);
+                                                toVisit.Push(next);
                                                 visited[next.x, next.y] = true;
                                                 visitedCount++;
                                             }
@@ -1190,7 +1192,8 @@ namespace BWEM.NET
                 }
             }
 
-            miniTilesByDescendingAltitude.Sort((a, b) => -a.Second.Altitude.CompareTo(b.Second.Altitude));
+            miniTilesByDescendingAltitude = miniTilesByDescendingAltitude.OrderBy(x => x.Second.Altitude).ToList();
+            miniTilesByDescendingAltitude.Reverse();
 
             return miniTilesByDescendingAltitude;
         }
@@ -1292,6 +1295,8 @@ namespace BWEM.NET
 
         private AreaId ChooseNeighboringArea(AreaId a, AreaId b)
         {
+            // return NeighboringAreaChooser.ChooseNeighboringArea(a, b);
+
             if (a > b)
             {
                 (a, b) = (b, a);
@@ -1306,6 +1311,41 @@ namespace BWEM.NET
 
             return (_mapAreaPairCounter[pair]++ % 2 == 0) ? a : b;
         }
+
+        // private static class NeighboringAreaChooser
+        // {
+        //     private static BitArray _areaPairFlag = new BitArray(800000);
+
+        //     public static AreaId ChooseNeighboringArea(AreaId a, AreaId b)
+        //     {
+        //         var aId = a.Value;
+        //         var bId = b.Value;
+
+        //         var cantor = (aId + bId) * (aId + bId + 1);
+        //         if (aId > bId)
+        //         {
+        //             cantor += bId;
+        //         }
+        //         else
+        //         {
+        //             cantor += aId;
+        //         }
+
+        //         if (_areaPairFlag.Length < cantor + 1)
+        //         {
+        //             _areaPairFlag.Length = cantor + 1;
+        //         }
+
+        //         Flip(cantor);
+        //         return _areaPairFlag.Get(cantor) ? a : b;
+        //     }
+
+        //     private static void Flip(int index)
+        //     {
+        //         var value = _areaPairFlag.Get(index);
+        //         _areaPairFlag.Set(index, !value);
+        //     }
+        // }
 
         private void ReplaceAreaIds(WalkPosition position, AreaId newAreaId)
         {
