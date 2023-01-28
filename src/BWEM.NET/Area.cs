@@ -273,11 +273,7 @@ namespace BWEM.NET
             Debug.Assert(!_chokePointsByArea.ContainsKey(area) && chokePoints != null);
 
             _chokePointsByArea[area] = chokePoints;
-
-            foreach (var cp in chokePoints)
-            {
-                _chokePoints.Add(cp);
-            }
+            _chokePoints.AddRange(chokePoints);
         }
 
         internal void AddMineral(Mineral mineral)

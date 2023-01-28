@@ -35,9 +35,11 @@ namespace BWEM.NET
     /// </summary>
     public class Map
     {
+        internal const int AltitudeScale = 8; // 8 provides a pixel definition for Altitude, since altitudes are computed from miniTiles which are 8x8 pixels
         internal const int AreaMinMiniTiles = 64; // At least area_min_miniTiles connected MiniTiles are necessary for an Area to be created.
         internal const int LakeMaxWidthInMiniTiles = 8 * 4;
         internal const int LakeMaxMiniTiles = 300; // These constants control how to decide between Seas and Lakes.
+        internal const int ClusterMinDist = 17; // ~Sqrt(LakeMaxMiniTiles);
         internal const int MaxTilesBetweenCommandCenterAndRessources = 10;
         internal const int MaxTilesBetweenStartingLocationAndItsAssignedBase = 3;
         internal const int MinTilesBetweenBases = 10;
@@ -734,6 +736,14 @@ namespace BWEM.NET
         private void LoadData()
         {
             // Mark unwalkable minitiles (minitiles are walkable by default)
+            MarkUnwalkableMiniTiles();
+
+            // Mark buildable tiles (tiles are unbuildable by default)
+            MarkBuildableTiles();
+        }
+
+        private void MarkUnwalkableMiniTiles()
+        {
             for (var y = 0; y < _walkSize.y; ++y)
             {
                 for (var x = 0; x < _walkSize.x; ++x)
@@ -755,8 +765,10 @@ namespace BWEM.NET
                     }
                 }
             }
+        }
 
-            // Mark buildable tiles (tiles are unbuildable by default)
+        private void MarkBuildableTiles()
+        {
             for (var y = 0; y < _tileSize.y; ++y)
             {
                 for (var x = 0; x < _tileSize.x; ++x)
@@ -919,9 +931,19 @@ namespace BWEM.NET
         /// </summary>
         private void ComputeAltitude()
         {
-            const int AltitudeScale = 8; // 8 provides a pixel definition for Altitude, since altitudes are computed from miniTiles which are 8x8 pixels
-
             // 1) Fill in and sort DeltasByAscendingAltitude
+            var deltasByAscendingAltitude = ComputeDeltasByAscendingAltitude();
+
+            // 2) Fill in activeSeaSideMiniTiles, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
+            //    It also includes extra border-miniTiles which are considered as seaside miniTiles too.
+            var activeSeaSideMiniTiles = ComputeActiveSeaSideMiniTiles();
+
+            // 3) Dijkstra's algorithm
+            ComputeAltitudes(deltasByAscendingAltitude, activeSeaSideMiniTiles);
+        }
+
+        private List<Pair<WalkPosition, Altitude>> ComputeDeltasByAscendingAltitude()
+        {
             var range = Math.Max(_walkSize.x, _walkSize.y) / 2 + 3; // should suffice for maps with no Sea.
 
             var deltasByAscendingAltitude = new List<Pair<WalkPosition, Altitude>>();
@@ -932,17 +954,20 @@ namespace BWEM.NET
                 {
                     if (dx != 0 || dy != 0)
                     {
-                        deltasByAscendingAltitude.Add(new Pair<WalkPosition, Altitude>(new WalkPosition(dx, dy), new Altitude((short)Math.Round(Ex.Norm(dx, dy) * AltitudeScale, MidpointRounding.AwayFromZero))));
+                        var position = new WalkPosition(dx, dy);
+                        var altitude = new Altitude((short)Math.Round(Ex.Norm(dx, dy) * AltitudeScale, MidpointRounding.AwayFromZero));
+                        deltasByAscendingAltitude.Add(new Pair<WalkPosition, Altitude>(position, altitude));
                     }
                 }
             }
 
-            // NOTE: Maybe stable sort here is not needed
-            // deltasByAscendingAltitude = deltasByAscendingAltitude.OrderBy(x => x.Second).ToList();
             deltasByAscendingAltitude.Sort((p1, p2) => p1.Second.CompareTo(p2.Second));
 
-            // 2) Fill in activeSeaSideMiniTiles, which basically contains all the seaside miniTiles (from which altitudes are to be computed)
-            //    It also includes extra border-miniTiles which are considered as seaside miniTiles too.
+            return deltasByAscendingAltitude;
+        }
+
+        private List<ActiveSeaSide> ComputeActiveSeaSideMiniTiles()
+        {
             var activeSeaSideMiniTiles = new List<ActiveSeaSide>();
 
             for (var y = -1; y <= _walkSize.y; ++y)
@@ -957,7 +982,11 @@ namespace BWEM.NET
                 }
             }
 
-            // 3) Dijkstra's algorithm
+            return activeSeaSideMiniTiles;
+        }
+
+        private void ComputeAltitudes(List<Pair<WalkPosition, Altitude>> deltasByAscendingAltitude, List<ActiveSeaSide> activeSeaSideMiniTiles)
+        {
             Span<WalkPosition> deltas = stackalloc WalkPosition[8];
 
             foreach (var (d, altitude) in deltasByAscendingAltitude)
@@ -983,14 +1012,14 @@ namespace BWEM.NET
                     {
                         foreach (var delta in deltas)
                         {
-                            var w = current.Origin + delta;
-                            if (Valid(w))
+                            var next = current.Origin + delta;
+                            if (Valid(next))
                             {
-                                var miniTile = GetTile(w, CheckMode.NoCheck);
-                                if (miniTile.AltitudeMissing)
+                                var nextMiniTile = GetTile(next, CheckMode.NoCheck);
+                                if (nextMiniTile.AltitudeMissing)
                                 {
                                     current.LastAltitudeGenerated = altitude;
-                                    miniTile.Altitude = altitude;
+                                    nextMiniTile.Altitude = altitude;
                                     _maxAltitude = altitude;
                                 }
                             }
@@ -1152,15 +1181,22 @@ namespace BWEM.NET
         //   - makes two neighbouring areas merge together.
         private void ComputeAreas()
         {
+            // 1) Sort minitiles by desceding altitudes
             var miniTilesByDescendingAltitude = SortMiniTiles();
+
+            // 2) Compute temporal areas that will be used later to compute the actual areas
             var tempAreas = ComputeTempAreas(miniTilesByDescendingAltitude);
+
+            // 3) Compute the areas using the temporal areas information
             CreateAreas(tempAreas);
+
+            // 4) Set the area ids to the corresponding tiles
             SetAreaIdInTiles();
         }
 
         private List<Pair<WalkPosition, MiniTile>> SortMiniTiles()
         {
-            var miniTilesByDescendingAltitude = new List<Pair<WalkPosition, MiniTile>>();
+            var miniTilesByDescendingAltitude = new List<Pair<WalkPosition, MiniTile>>(_walkSize.x * _walkSize.y);
 
             for (var y = 0; y < _walkSize.y; ++y)
             {
@@ -1175,22 +1211,16 @@ namespace BWEM.NET
                 }
             }
 
-            // NOTE: Maybe stable sort here is not needed
-            // miniTilesByDescendingAltitude = miniTilesByDescendingAltitude.OrderBy(x => x.Second.Altitude).ToList();
-            // miniTilesByDescendingAltitude.Reverse();
             miniTilesByDescendingAltitude.Sort((a, b) => -a.Second.Altitude.CompareTo(b.Second.Altitude));
 
             return miniTilesByDescendingAltitude;
         }
 
-        private List<TempAreaInfo> ComputeTempAreas(List<Pair<WalkPosition, MiniTile>> MiniTilesByDescendingAltitude)
+        private List<TempAreaInfo> ComputeTempAreas(List<Pair<WalkPosition, MiniTile>> miniTilesByDescendingAltitude)
         {
             var tempAreas = new List<TempAreaInfo>() { new TempAreaInfo() }; // TempAreaList[0] left unused, as AreaIds are > 0
-            foreach (var current in MiniTilesByDescendingAltitude)
+            foreach (var (pos, cur) in miniTilesByDescendingAltitude)
             {
-                var pos = current.First;
-                var cur = current.Second;
-
                 var neighboringAreas = FindNeighboringAreas(pos);
                 if (neighboringAreas.First == 0) // no neighboring area : creates of a new area
                 {
@@ -1213,9 +1243,9 @@ namespace BWEM.NET
                     // Condition for the neighboring areas to merge:
                     if ((tempAreas[smaller.Value].Size < 80) ||
                         (tempAreas[smaller.Value].HighestAltitude < 80) ||
-                        (cur.Altitude.Value / (double)tempAreas[bigger.Value].HighestAltitude.Value >= 0.90) ||
-                        (cur.Altitude.Value / (double)tempAreas[smaller.Value].HighestAltitude.Value >= 0.90) ||
-                        _startingLocations.Any(startingLoc => Ex.Dist(new TilePosition(pos), startingLoc + new TilePosition(2, 1)) <= 3))
+                        (cur.Altitude.Value * 10 >= tempAreas[bigger.Value].HighestAltitude.Value * 9) || // rewritten to avoid division: (cur.Altitude.Value / (double)tempAreas[bigger.Value].HighestAltitude.Value >= 0.90) ||
+                        (cur.Altitude.Value * 10 >= tempAreas[smaller.Value].HighestAltitude.Value * 9) || // rewritten to avoid division: (cur.Altitude.Value / (double)tempAreas[smaller.Value].HighestAltitude.Value >= 0.90) ||
+                        _startingLocations.Any(startingLoc => Ex.SquaredDist(new TilePosition(pos), startingLoc + new TilePosition(2, 1)) <= 3 * 3))
                     {
                         // adds cur to the absorbing area:
                         tempAreas[bigger.Value].Add(cur);
@@ -1304,9 +1334,10 @@ namespace BWEM.NET
                 WalkPosition.Bottom
             };
 
-            var origin = GetTile(position, CheckMode.NoCheck);
-            var oldAreaId = origin.AreaId;
-            origin.ReplaceAreaId(newAreaId);
+            var miniTile = GetTile(position, CheckMode.NoCheck);
+            var oldAreaId = miniTile.AreaId;
+
+            miniTile.ReplaceAreaId(newAreaId);
 
             var toSearch = new Queue<WalkPosition>();
             toSearch.Enqueue(position);
@@ -1442,27 +1473,27 @@ namespace BWEM.NET
 
         private bool SeaSide(WalkPosition p)
         {
-            if (!GetTile(p).Sea)
+            var miniTile = GetTile(p);
+            if (miniTile.Sea)
             {
-                return false;
-            }
-
-            Span<WalkPosition> deltas = stackalloc[]
-            {
-                WalkPosition.Top,
-                WalkPosition.Left,
-                WalkPosition.Right,
-                WalkPosition.Bottom
-            };
-
-            foreach (var delta in deltas)
-            {
-                if (Valid(p + delta))
+                Span<WalkPosition> deltas = stackalloc[]
                 {
-                    var tile = GetTile(p + delta, CheckMode.NoCheck);
-                    if (!tile.Sea)
+                    WalkPosition.Top,
+                    WalkPosition.Left,
+                    WalkPosition.Right,
+                    WalkPosition.Bottom
+                };
+
+                foreach (var delta in deltas)
+                {
+                    var next = p + delta;
+                    if (Valid(next))
                     {
-                        return true;
+                        var tile = GetTile(next, CheckMode.NoCheck);
+                        if (!tile.Sea)
+                        {
+                            return true;
+                        }
                     }
                 }
             }

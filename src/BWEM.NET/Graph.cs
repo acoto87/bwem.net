@@ -240,29 +240,26 @@ namespace BWEM.NET
         // Creates a new Area for each pair (top, miniTiles) in AreasList (See Area::Top() and Area::MiniTiles())
         public void CreateChokePoints()
         {
-            var newIndex = 0;
-
-            var blockingNeutrals = new List<Neutral>();
-
-            foreach (var s in _map.StaticBuildings)
-            {
-                if (s.Blocking)
-                {
-                    blockingNeutrals.Add(s);
-                }
-            }
-
-            foreach (var m in _map.Minerals)
-            {
-                if (m.Blocking)
-                {
-                    blockingNeutrals.Add(m);
-                }
-            }
-
-            // var pseudoChokePointsToCreate = blockingNeutrals.Count(n => n.NextStacked == null);
+            var index = 0;
 
             // 1) Size the matrix
+            CreateChokePointsMatrix();
+
+            // 2) Dispatch the global raw frontier between all the relevant pairs of Areas:
+            var rawFrontierByAreaPair = ComputeRawFrontierByAreaPair();
+
+            // 3) For each pair of Areas (A, B):
+            index = CreateChokePointsForAreas(index, rawFrontierByAreaPair);
+
+            // 4) Create one Chokepoint for each pair of blocked areas, for each blocking Neutral:
+            _ = CreateChokePointsForBlockedAreas(index);
+
+            // 5) Set the references to the freshly created Chokepoints:
+            AddCreatedChokePoints();
+        }
+
+        private void CreateChokePointsMatrix()
+        {
             _chokePointsMatrix = new List<ChokePoint>[_areas.Count + 1, _areas.Count + 1];
             for (var i = 1; i <= _areas.Count; ++i)
             {
@@ -271,8 +268,10 @@ namespace BWEM.NET
                     _chokePointsMatrix[i, j] = new List<ChokePoint>();
                 }
             }
+        }
 
-            // 2) Dispatch the global raw frontier between all the relevant pairs of Areas:
+        private Dictionary<Pair<AreaId, AreaId>, List<WalkPosition>> ComputeRawFrontierByAreaPair()
+        {
             var rawFrontierByAreaPair = new Dictionary<Pair<AreaId, AreaId>, List<WalkPosition>>();
 
             foreach (var raw in _map.RawFrontier)
@@ -296,17 +295,17 @@ namespace BWEM.NET
                 rawFrontierByAreaPair[pair].Add(raw.Second);
             }
 
-            // 3) For each pair of Areas (A, B):
-            foreach (var raw in rawFrontierByAreaPair)
+            return rawFrontierByAreaPair;
+        }
+
+        private int CreateChokePointsForAreas(int index, Dictionary<Pair<AreaId, AreaId>, List<WalkPosition>> rawFrontierByAreaPair)
+        {
+            foreach (var ((a, b), rawFrontierAB) in rawFrontierByAreaPair)
             {
-                var a = raw.Key.First;
-                var b = raw.Key.Second;
-
-                var rawFrontierAB = raw.Value;
-
                 // Because our dispatching preserved order,
                 // and because Map::m_RawFrontier was populated in descending order of the altitude (see Map::ComputeAreas),
                 // we know that RawFrontierAB is also ordered the same way, but let's check it:
+#if DEBUG
                 {
                     var altitudes = new List<Altitude>();
                     foreach (var w in rawFrontierAB)
@@ -315,69 +314,108 @@ namespace BWEM.NET
                     }
 
                     // Check if the altitudes array is sorted in descending order.
-                    for (var i = 1; i < altitudes.Count; ++i) {
+                    for (var i = 1; i < altitudes.Count; ++i)
+                    {
                         Debug.Assert(altitudes[i - 1] >= altitudes[i]);
                     }
                 }
-
+#endif
                 // 3.1) Use that information to efficiently cluster RawFrontierAB in one or several chokepoints.
                 //    Each cluster will be populated starting with the center of a chokepoint (max altitude)
                 //    and finishing with the ends (min altitude).
-                var clusterMinDist = Math.Sqrt(Map.LakeMaxMiniTiles);
-                var clusters = new List<Deque<WalkPosition>>();
-                foreach (var w in rawFrontierAB)
+                var clusters = ComputeChokePointsClusters(rawFrontierAB);
+
+                // 3.2) Create one Chokepoint for each cluster:
+                index = CreateChokePointsForClusters(a, b, clusters, index);
+            }
+
+            return index;
+        }
+
+        private static List<Deque<WalkPosition>> ComputeChokePointsClusters(List<WalkPosition> rawFrontierAB)
+        {
+            var clusters = new List<Deque<WalkPosition>>();
+
+            foreach (var w in rawFrontierAB)
+            {
+                var added = false;
+
+                foreach (var cluster in clusters)
                 {
-                    var added = false;
-                    foreach (var cluster in clusters)
+                    var distToFront = Ex.QueenWiseDist(cluster[0], w);
+                    var distToBack = Ex.QueenWiseDist(cluster[^1], w);
+                    if (Math.Min(distToFront, distToBack) <= Map.ClusterMinDist)
                     {
-                        var distToFront = Ex.QueenWiseDist(cluster[0], w);
-                        var distToBack = Ex.QueenWiseDist(cluster[^1], w);
-                        if (Math.Min(distToFront, distToBack) <= clusterMinDist)
+                        if (distToFront < distToBack)
                         {
-                            if (distToFront < distToBack)
-                            {
-                                cluster.AddToFront(w);
-                            }
-                            else
-                            {
-                                cluster.AddToBack(w);
-                            }
-
-                            added = true;
-                            break;
+                            cluster.AddToFront(w);
                         }
-                    }
+                        else
+                        {
+                            cluster.AddToBack(w);
+                        }
 
-                    if (!added)
-                    {
-                        var q = new Deque<WalkPosition>();
-                        q.AddToBack(w);
-                        clusters.Add(q);
+                        added = true;
+                        break;
                     }
                 }
 
-                // 3.2) Create one Chokepoint for each cluster:
-                var chokePoints = GetChokePoints(a, b);
-                var areaA = GetArea(a);
-                var areaB = GetArea(b);
-                foreach (var cluster in clusters)
+                if (!added)
                 {
-                    chokePoints.Add(new ChokePoint(this, newIndex, areaA, areaB, cluster.ToArray()));
-                    newIndex++;
+                    var cluster = new Deque<WalkPosition>();
+                    cluster.AddToBack(w);
+                    clusters.Add(cluster);
                 }
             }
 
-            // 4) Create one Chokepoint for each pair of blocked areas, for each blocking Neutral:
+            return clusters;
+        }
+
+        private int CreateChokePointsForClusters(AreaId a, AreaId b, List<Deque<WalkPosition>> clusters, int newIndex)
+        {
+            var chokePoints = GetChokePoints(a, b);
+            var areaA = GetArea(a);
+            var areaB = GetArea(b);
+            foreach (var cluster in clusters)
+            {
+                chokePoints.Add(new ChokePoint(this, newIndex, areaA, areaB, cluster.ToArray()));
+                newIndex++;
+            }
+
+            return newIndex;
+        }
+
+        private int CreateChokePointsForBlockedAreas(int index)
+        {
+            var blockingNeutrals = new List<Neutral>(_map.StaticBuildings.Count + _map.Minerals.Count);
+
+            foreach (var s in _map.StaticBuildings)
+            {
+                if (s.Blocking)
+                {
+                    blockingNeutrals.Add(s);
+                }
+            }
+
+            foreach (var m in _map.Minerals)
+            {
+                if (m.Blocking)
+                {
+                    blockingNeutrals.Add(m);
+                }
+            }
+
             foreach (var neutral in blockingNeutrals)
             {
                 if (neutral.NextStacked == null) // in the case where several neutrals are stacked, we only consider the top
                 {
                     var blockedAreas = neutral.BlockedAreas;
-                    foreach (var pA in blockedAreas)
+
+                    foreach (var a in blockedAreas)
                     {
-                        foreach (var pB in blockedAreas)
+                        foreach (var b in blockedAreas)
                         {
-                            if (pB == pA)
+                            if (a == b)
                             {
                                 break;
                             }
@@ -388,17 +426,21 @@ namespace BWEM.NET
                                 (MiniTile _0, WalkPosition _1) => true                      // visitCond
                             );
 
-                            var chokePoints = GetChokePoints(pA, pB);
-                            chokePoints.Add(new ChokePoint(this, newIndex, pA, pB, new WalkPosition[] { center }, neutral));
-                            newIndex++;
+                            var chokePoints = GetChokePoints(a, b);
+                            chokePoints.Add(new ChokePoint(this, index, a, b, new WalkPosition[] { center }, neutral));
+                            index++;
                         }
                     }
                 }
             }
 
-            // 5) Set the references to the freshly created Chokepoints:
+            return index;
+        }
+
+        private void AddCreatedChokePoints()
+        {
             _chokePoints = new List<ChokePoint>();
-            for (var a = 1; a <= AreasCount; ++a)
+            for (var a = 1; a <= _areas.Count; ++a)
             {
                 for (var b = 1; b < a; ++b)
                 {
@@ -407,13 +449,11 @@ namespace BWEM.NET
                     {
                         var areaA = GetArea(a);
                         var areaB = GetArea(b);
+
                         areaA.AddChokePoints(areaB, chokePointsAB);
                         areaB.AddChokePoints(areaA, chokePointsAB);
 
-                        foreach (var cp in chokePointsAB)
-                        {
-                            _chokePoints.Add(cp);
-                        }
+                        _chokePoints.AddRange(chokePointsAB);
                     }
                 }
             }
@@ -499,7 +539,6 @@ namespace BWEM.NET
                 area.PostCollectInformation();
             }
         }
-
 
         public void CreateBases()
         {

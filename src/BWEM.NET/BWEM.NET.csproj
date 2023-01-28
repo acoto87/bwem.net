@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>disable</Nullable>
         <Title>BWEM.NET</Title>
-        <Version>0.1.5</Version>
+        <Version>0.1.7</Version>
         <Authors>Alejandro Coto Gutiérrez</Authors>
         <Description>A port of BWEM to .NET.</Description>
         <Copyright>Copyright (c) Alejandro Coto Gutiérrez 2023</Copyright>
@@ -24,6 +24,10 @@
             <PackagePath>\</PackagePath>
         </None>
         <None Include="..\..\README.md">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+        <None Include="..\..\CHANGELOG.md">
             <Pack>True</Pack>
             <PackagePath>\</PackagePath>
         </None>

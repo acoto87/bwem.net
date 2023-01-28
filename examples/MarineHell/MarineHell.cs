@@ -592,15 +592,15 @@ namespace MarineHell
             return shortestPath;
         }
 
-        private static Pair<Position, Position> CalculateSides(Deque<WalkPosition> wp)
+        private static Pair<Position, Position> CalculateSides(WalkPosition[] wp)
         {
             var p1 = wp[0];
             var p2 = wp[0];
             var d_max = -1.0;
 
-            for (var i = 0; i < wp.Count; i++)
+            for (var i = 0; i < wp.Length; i++)
             {
-                for (var j = i + 1; j < wp.Count; j++)
+                for (var j = i + 1; j < wp.Length; j++)
                 {
                     var d = wp[i].GetDistance(wp[j]);
                     if (d > d_max)

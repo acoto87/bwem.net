@@ -10,7 +10,7 @@ namespace BWEM.NET.Benchmarks
     {
         private const string ResourcesFolder = "Resources";
 
-        // private const string TestMapName = "(2)Astral Balance.scm_frame0_buffer.bin";
+        private const string TestMapName = "(2)Astral Balance.scm_frame0_buffer.bin";
         // private const string TestMapName = "(2)Breaking Point.scx_frame0_buffer.bin";
         // private const string TestMapName = "(2)Isolation.scx_frame0_buffer.bin";
         // private const string TestMapName = "(2)Crystallis.scm_frame0_buffer.bin";
@@ -20,7 +20,7 @@ namespace BWEM.NET.Benchmarks
         // private const string TestMapName = "(5)Twilight Star.scx_frame0_buffer.bin";
         // private const string TestMapName = "(6)Sapphire Isles.scx_frame0_buffer.bin";
         // private const string TestMapName = "(7)Black Lotus.scx_frame0_buffer.bin";
-        private const string TestMapName = "(8)Frozen Sea.scx_frame0_buffer.bin";
+        // private const string TestMapName = "(8)Frozen Sea.scx_frame0_buffer.bin";
 
         private MemoryMappedFile _mmf;
         private MemoryMappedViewAccessor _gameViewAccessor;
@@ -45,7 +45,8 @@ namespace BWEM.NET.Benchmarks
         [Benchmark]
         public void BWEMInit()
         {
-            Map.Instance.Initialize(_game);
+            var map = new Map(_game);
+            map.Initialize();
         }
 
         private static MemoryMappedFile GetMemoryMappedFileForMap(string filePath)
