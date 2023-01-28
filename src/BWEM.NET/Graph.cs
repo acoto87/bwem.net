@@ -21,17 +21,17 @@ namespace BWEM.NET
 {
     public class Graph
     {
-        private readonly Map _map;
+        internal readonly Map _map;
         private List<ChokePoint> _chokePoints;
         private List<Area> _areas;
-        private List<List<List<ChokePoint>>> _chokePointsMatrix; // index == Area::id x Area::id
-        private List<List<int>> _chokePointDistanceMatrix; // index == ChokePoint::index x ChokePoint::index
-        private List<List<CPPath>> _pathsBetweenChokePoints; // index == ChokePoint::index x ChokePoint::index
+        private List<ChokePoint>[,] _chokePointsMatrix; // index == Area::id x Area::id
+        private int[,] _chokePointDistanceMatrix; // index == ChokePoint::index x ChokePoint::index
+        private CPPath[,] _pathsBetweenChokePoints; // index == ChokePoint::index x ChokePoint::index
         private List<Base> _bases;
 
-        public Graph(Map pMap)
+        public Graph(Map map)
         {
-            _map = pMap;
+            _map = map;
         }
 
         public Map Map
@@ -75,22 +75,22 @@ namespace BWEM.NET
 
         public Area GetArea(WalkPosition w)
         {
-            var id = _map.GetTile(w).AreaId;
-            return id > 0 ? GetArea(id) : null;
+            var miniTile = _map.GetTile(w);
+            return miniTile.AreaId > 0 ? GetArea(miniTile.AreaId) : null;
         }
 
         public Area GetArea(TilePosition t)
         {
-            var id = _map.GetTile(t).AreaId;
-            return id > 0 ? GetArea(id) : null;
+            var tile = _map.GetTile(t);
+            return tile.AreaId > 0 ? GetArea(tile.AreaId) : null;
         }
 
         public Area GetArea<TPosition, TTile>(TPosition p)
             where TPosition : IPoint<TPosition>
             where TTile : ITile
         {
-            var id = _map.GetTile<TPosition, TTile>(p).AreaId;
-            return id > 0 ? GetArea(id) : null;
+            var tile = _map.GetTile<TPosition, TTile>(p);
+            return tile.AreaId > 0 ? GetArea(tile.AreaId) : null;
         }
 
         public Area GetNearestArea<TPosition, TTile>(TPosition p)
@@ -124,19 +124,19 @@ namespace BWEM.NET
                 (a, b) = (b, a);
             }
 
-            return _chokePointsMatrix[b.Value][a.Value];
+            return _chokePointsMatrix[b.Value, a.Value];
         }
 
         // Returns the ground distance in pixels between cpA->Center() and cpB>Center()
         public int Distance(ChokePoint cpA, ChokePoint cpB)
         {
-            return _chokePointDistanceMatrix[cpA.Index][cpB.Index];
+            return _chokePointDistanceMatrix[cpA.Index, cpB.Index];
         }
 
         // Returns a list of ChokePoints, which is intended to be the shortest walking path from cpA to cpB.
         public CPPath GetPath(ChokePoint cpA, ChokePoint cpB)
         {
-            return _pathsBetweenChokePoints[cpA.Index][cpB.Index];
+            return _pathsBetweenChokePoints[cpA.Index, cpB.Index];
         }
 
         public CPPath GetPath(Position a, Position b, out int length)
@@ -227,13 +227,12 @@ namespace BWEM.NET
         }
 
         // Creates a new Area for each pair (top, miniTiles) in AreasList (See Area::Top() and Area::MiniTiles())
-        public void CreateAreas(List<Pair<WalkPosition, int>> AreasList)
+        public void CreateAreas(List<Pair<WalkPosition, int>> areas)
         {
-            _areas = new List<Area>(AreasList.Count);
-            for (var id = 1; id <= AreasList.Count; ++id)
+            _areas = new List<Area>(areas.Count);
+            for (var id = 1; id <= areas.Count; ++id)
             {
-                var top = AreasList[id - 1].First;
-                var miniTiles = AreasList[id - 1].Second;
+                var (top, miniTiles) = areas[id - 1];
                 _areas.Add(new Area(this, (short)id, top, miniTiles));
             }
         }
@@ -264,15 +263,13 @@ namespace BWEM.NET
             // var pseudoChokePointsToCreate = blockingNeutrals.Count(n => n.NextStacked == null);
 
             // 1) Size the matrix
-            _chokePointsMatrix = new List<List<List<ChokePoint>>>(AreasCount) { null };
-            for (var id = 1; id <= AreasCount; ++id)
+            _chokePointsMatrix = new List<ChokePoint>[_areas.Count + 1, _areas.Count + 1];
+            for (var i = 1; i <= _areas.Count; ++i)
             {
-                var subList = new List<List<ChokePoint>>(id);
-                for (var n = 0; n < id; n++)
+                for (var j = 0; j < i; j++)
                 {
-                    subList.Add(new List<ChokePoint>());
+                    _chokePointsMatrix[i, j] = new List<ChokePoint>();
                 }
-                _chokePointsMatrix.Add(subList); // triangular matrix
             }
 
             // 2) Dispatch the global raw frontier between all the relevant pairs of Areas:
@@ -365,7 +362,7 @@ namespace BWEM.NET
                 var areaB = GetArea(b);
                 foreach (var cluster in clusters)
                 {
-                    chokePoints.Add(new ChokePoint(this, newIndex, areaA, areaB, cluster));
+                    chokePoints.Add(new ChokePoint(this, newIndex, areaA, areaB, cluster.ToArray()));
                     newIndex++;
                 }
             }
@@ -391,11 +388,8 @@ namespace BWEM.NET
                                 (MiniTile _0, WalkPosition _1) => true                      // visitCond
                             );
 
-                            var q = new Deque<WalkPosition>();
-                            q.AddToBack(center);
-
                             var chokePoints = GetChokePoints(pA, pB);
-                            chokePoints.Add(new ChokePoint(this, newIndex, pA, pB, q, neutral));
+                            chokePoints.Add(new ChokePoint(this, newIndex, pA, pB, new WalkPosition[] { center }, neutral));
                             newIndex++;
                         }
                     }
@@ -428,23 +422,22 @@ namespace BWEM.NET
         public void ComputeChokePointDistanceMatrix()
         {
             // 1) Size the matrix
-            _chokePointDistanceMatrix = new List<List<int>>(_chokePoints.Count);
+            _chokePointDistanceMatrix = new int[_chokePoints.Count, _chokePoints.Count];
             for (var i = 0; i < _chokePoints.Count; i++)
             {
-                var subList = new List<int>(_chokePoints.Count);
-                subList.AddRepeat(_chokePoints.Count, -1);
-                _chokePointDistanceMatrix.Add(subList);
+                for (var j = 0; j < _chokePoints.Count; j++)
+                {
+                    _chokePointDistanceMatrix[i, j] = -1;
+                }
             }
 
-            _pathsBetweenChokePoints = new List<List<CPPath>>(_chokePoints.Count);
+            _pathsBetweenChokePoints = new CPPath[_chokePoints.Count, _chokePoints.Count];
             for (var i = 0; i < _chokePoints.Count; i++)
             {
-                var subList = new List<CPPath>(_chokePoints.Count);
-                for (var k = 0; k < _chokePoints.Count; k++)
+                for (var j = 0; j < _chokePoints.Count; j++)
                 {
-                    subList.Add(new CPPath());
+                    _pathsBetweenChokePoints[i, j] = new CPPath();
                 }
-                _pathsBetweenChokePoints.Add(subList);
             }
 
             // 2) Compute distances inside each Area
@@ -601,14 +594,13 @@ namespace BWEM.NET
         // For each reached target, the shortest path can be derived using
         // the backward trace set in cp->PathBackTrace() for each intermediate ChokePoint cp from the target.
         // Note: same algo than Area::ComputeDistances (derived from Dijkstra)
-        private List<int> ComputeDistances(ChokePoint start, List<ChokePoint> targets)
+        private int[] ComputeDistances(ChokePoint start, List<ChokePoint> targets)
         {
-            var distanceToTargets = new List<int>(targets.Count);
-            distanceToTargets.AddRepeat(targets.Count, 0);
+            var distanceToTargets = new int[targets.Count];
 
             var remainingTargets = targets.Count;
 
-            var visited = new HashSet<TilePosition>();
+            using var marked = new Markable2D(_map._tileSize.x, _map._tileSize.y);
             var distances = new Dictionary<TilePosition, int>();
             var toVisit = new PriorityQueue<ChokePoint, int>(); // a priority queue holding the tiles to visit ordered by their distance to start.
 
@@ -620,7 +612,7 @@ namespace BWEM.NET
                 var current = new TilePosition(currentChokePoint.Center);
                 Debug.Assert(distances[current] == currentDist);
 
-                visited.Add(current);
+                marked.Mark(current.x, current.y);
 
                 for (var i = 0; i < targets.Count; ++i)
                 {
@@ -650,7 +642,7 @@ namespace BWEM.NET
                         if (nextChokePoint != currentChokePoint)
                         {
                             var newNextDist = currentDist + Distance(currentChokePoint, nextChokePoint);
-                            if (!visited.Contains(next))
+                            if (!marked.IsMarked(next.x, next.y))
                             {
                                 if (distances.TryGetValue(next, out var nextOldDist))	// next already in ToVisit
                                 {
@@ -683,8 +675,8 @@ namespace BWEM.NET
 
         private void SetDistance(ChokePoint cpA, ChokePoint cpB, int value)
         {
-            _chokePointDistanceMatrix[cpA.Index][cpB.Index] =
-            _chokePointDistanceMatrix[cpB.Index][cpA.Index] = value;
+            _chokePointDistanceMatrix[cpA.Index, cpB.Index] =
+            _chokePointDistanceMatrix[cpB.Index, cpA.Index] = value;
         }
 
         private void UpdateGroupIds()
@@ -722,8 +714,8 @@ namespace BWEM.NET
 
         private void SetPath(ChokePoint cpA, ChokePoint cpB, CPPath PathAB)
         {
-            _pathsBetweenChokePoints[cpA.Index][cpB.Index] = PathAB;
-            _pathsBetweenChokePoints[cpB.Index][cpA.Index] = new CPPath(Enumerable.Reverse(PathAB));
+            _pathsBetweenChokePoints[cpA.Index, cpB.Index] = PathAB;
+            _pathsBetweenChokePoints[cpB.Index, cpA.Index] = new CPPath(Enumerable.Reverse(PathAB));
         }
 
         private Area MainArea(TilePosition topLeft, TilePosition size)

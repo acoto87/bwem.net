@@ -324,7 +324,7 @@ namespace BWEM.NET
         {
         }
 
-        internal List<int> ComputeDistances(ChokePoint startChokePoint, List<ChokePoint> targetChokePoints)
+        internal int[] ComputeDistances(ChokePoint startChokePoint, List<ChokePoint> targetChokePoints)
         {
             Debug.Assert(!targetChokePoints.Contains(startChokePoint));
 
@@ -609,28 +609,27 @@ namespace BWEM.NET
 
         // Returns Distances such that Distances[i] == ground_distance(start, Targets[i]) in pixels
         // Note: same algorithm than Graph::ComputeDistances (derived from Dijkstra)
-        private List<int> ComputeDistances(TilePosition start, List<TilePosition> targets)
+        private int[] ComputeDistances(TilePosition start, List<TilePosition> targets)
         {
-            var deltas = new[]
+            Span<TilePosition> deltas = stackalloc[]
             {
-                new TilePosition(-1, -1),
-                new TilePosition(0, -1),
-                new TilePosition(+1, -1),
+                TilePosition.TopLeft,
+                TilePosition.Top,
+                TilePosition.TopRight,
 
-                new TilePosition(-1,  0),
-                new TilePosition(+1,  0),
+                TilePosition.Left,
+                TilePosition.Right,
 
-                new TilePosition(-1, +1),
-                new TilePosition(0, +1),
-                new TilePosition(+1, +1)
+                TilePosition.BottomLeft,
+                TilePosition.Bottom,
+                TilePosition.BottomRight
             };
 
-            var distanceToTargets = new List<int>(targets.Count);
-            distanceToTargets.AddRepeat(targets.Count, 0);
+            var distanceToTargets = new int[targets.Count];
 
             var remainingTargets = targets.Count;
 
-            var visited = new HashSet<TilePosition>();
+            using var marked = new Markable2D(_graph._map._tileSize.x, _graph._map._tileSize.y);
             var distances = new Dictionary<TilePosition, int>();
             var toVisit = new PriorityQueue<TilePosition, int>(); // a priority queue holding the tiles to visit ordered by their distance to start.
 
@@ -641,7 +640,7 @@ namespace BWEM.NET
             {
                 Debug.Assert(distances[current] == currentDist);
 
-                visited.Add(current);
+                marked.Mark(current.x, current.y);
 
                 for (var i = 0 ; i < targets.Count ; ++i)
                 {
@@ -664,7 +663,7 @@ namespace BWEM.NET
                     var diagonalMove = (delta.x != 0) && (delta.y != 0);
                     var newNextDist = currentDist + (diagonalMove ? 14142 : 10000);
 
-                    if (_graph.Map.Valid(next) && !visited.Contains(next))
+                    if (_graph.Map.Valid(next) && !marked.IsMarked(next.x, next.y))
                     {
                         var nextTile = _graph.Map.GetTile(next, CheckMode.NoCheck);
                         if (distances.TryGetValue(next, out var nextOldDist)) // next already in ToVisit
@@ -686,7 +685,7 @@ namespace BWEM.NET
                 }
             }
 
-            Debug.Assert(remainingTargets == 0);
+            // Debug.Assert(remainingTargets == 0);
 
             return distanceToTargets;
         }

@@ -45,14 +45,14 @@ namespace BWEM.NET
         private readonly Pair<Area, Area> _areas;
         private readonly WalkPosition[] _nodes;
         private readonly Pair<WalkPosition, WalkPosition>[] _nodesInArea;
-        private readonly Deque<WalkPosition> _geometry;
+        private readonly WalkPosition[] _geometry;
         private bool _blocked;
         private Neutral _blockingNeutral;
         private ChokePoint _pathBackTrace;
 
-        internal ChokePoint(Graph graph, int idx, Area area1, Area area2, Deque<WalkPosition> geometry, Neutral blockingNeutral = null)
+        internal ChokePoint(Graph graph, int idx, Area area1, Area area2, WalkPosition[] geometry, Neutral blockingNeutral = null)
         {
-            Debug.Assert(geometry.Count > 0);
+            Debug.Assert(geometry.Length > 0);
 
             _graph = graph;
             _index = idx;
@@ -71,7 +71,7 @@ namespace BWEM.NET
 
             _nodes = new WalkPosition[(int)Node.NodeCount];
             _nodes[(int)Node.End1] = geometry[0];
-            _nodes[(int)Node.End2] = geometry[geometry.Count - 1];
+            _nodes[(int)Node.End2] = geometry[geometry.Length - 1];
 
             _nodesInArea = new Pair<WalkPosition, WalkPosition>[(int)Node.NodeCount];
             for (var k = 0; k < (int)Node.NodeCount; ++k)
@@ -79,13 +79,13 @@ namespace BWEM.NET
                 _nodesInArea[k] = new Pair<WalkPosition, WalkPosition>(new WalkPosition(0, 0), new WalkPosition(0, 0));
             }
 
-            var i = geometry.Count / 2;
+            var i = geometry.Length / 2;
             while ((i > 0) && (_graph.Map.GetTile(geometry[i - 1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
             {
                 --i;
             }
 
-            while ((i < geometry.Count - 1) && (_graph.Map.GetTile(geometry[i + 1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
+            while ((i < geometry.Length - 1) && (_graph.Map.GetTile(geometry[i + 1]).Altitude > _graph.Map.GetTile(geometry[i]).Altitude))
             {
                 ++i;
             }
@@ -136,7 +136,7 @@ namespace BWEM.NET
         //       They are however guaranteed to be part of one of the 2 Areas.
         // Note: the returned set contains Pos(middle), Pos(end1) and Pos(end2).
         // If IsPseudo(), returns {p} where p is the position of a walkable MiniTile near from BlockingNeutral()->Pos().
-        public Deque<WalkPosition> Geometry
+        public WalkPosition[] Geometry
         {
             get => _geometry;
         }
