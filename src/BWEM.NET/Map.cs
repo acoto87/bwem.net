@@ -45,8 +45,8 @@ namespace BWEM.NET
 
         private static readonly Random _rnd = new Random();
         private static readonly Dictionary<Pair<AreaId, AreaId>, int> _mapAreaPairCounter = new Dictionary<Pair<AreaId, AreaId>, int>();
-        private static Map _instance;
 
+        private readonly BWGame _game;
         private Graph _graph;
         private List<Mineral> _minerals;
         private List<Geyser> _geysers;
@@ -65,17 +65,10 @@ namespace BWEM.NET
         private Altitude _maxAltitude;
         private bool _automaticPathUpdate;
 
-        private Map()
+        public Map(BWGame game)
         {
-        }
-
-        /// <summary>
-        /// Returns the unique instance (singleton).
-        /// It is equal to use Map.Instance each time, or to store the returned reference and use it instead.
-        /// </summary>
-        public static Map Instance
-        {
-            get => _instance ??= new Map();
+            Debug.Assert(game != null);
+            _game = game;
         }
 
         /// <summary>
@@ -203,9 +196,9 @@ namespace BWEM.NET
         /// This has to be called before any other function is called.
         /// A good place to do this is in ExampleAIModule::onStart()
         /// </summary>
-        public void Initialize(BWGame game)
+        public void Initialize()
         {
-            _tileSize = new TilePosition(game.MapWidth(), game.MapHeight());
+            _tileSize = new TilePosition(_game.MapWidth(), _game.MapHeight());
             _walkSize = new WalkPosition(_tileSize);
 
             var tilesCount = _tileSize.x * _tileSize.y;
@@ -226,7 +219,7 @@ namespace BWEM.NET
             _center = new Position(_tileSize.x / 2, _tileSize.y / 2);
 
             _startingLocations = new List<TilePosition>();
-            foreach (var startLocation in game.GetStartLocations())
+            foreach (var startLocation in _game.GetStartLocations())
             {
                 _startingLocations.Add(startLocation);
             }
@@ -238,9 +231,9 @@ namespace BWEM.NET
 
             _graph = new Graph(this);
 
-            LoadData(game);
+            LoadData();
             DecideSeasOrLakes();
-            InitializeNeutrals(game);
+            InitializeNeutrals();
             ComputeAltitude();
             ProcessBlockingNeutrals();
             ComputeAreas();
@@ -740,14 +733,14 @@ namespace BWEM.NET
         }
 
         // Computes walkability, buildability and groundHeight and doodad information, using BWAPI corresponding functions
-        private void LoadData(BWGame game)
+        private void LoadData()
         {
             // Mark unwalkable minitiles (minitiles are walkable by default)
             for (var y = 0; y < _walkSize.y; ++y)
             {
                 for (var x = 0; x < _walkSize.x; ++x)
                 {
-                    if (!game.IsWalkable(x, y)) // For each unwalkable minitile, we also mark its 8 neighbours as not walkable.
+                    if (!_game.IsWalkable(x, y)) // For each unwalkable minitile, we also mark its 8 neighbours as not walkable.
                     {
                         for (var dy = -1; dy <= +1; ++dy) // According to some tests, this prevents from wrongly pretending one Marine can go by some thin path.
                         {
@@ -773,7 +766,7 @@ namespace BWEM.NET
                     var tilePosition = new TilePosition(x, y);
                     var tile = GetTile(tilePosition);
 
-                    if (game.IsBuildable(tilePosition))
+                    if (_game.IsBuildable(tilePosition))
                     {
                         tile.SetBuildable();
 
@@ -789,7 +782,7 @@ namespace BWEM.NET
                     }
 
                     // Add groundHeight and doodad information:
-                    var groundHeight = game.GetGroundHeight(tilePosition);
+                    var groundHeight = _game.GetGroundHeight(tilePosition);
                     tile.GroundHeight = (Tile.GroundHeight_)(groundHeight / 2);
                     if (groundHeight % 2 != 0)
                     {
@@ -876,9 +869,9 @@ namespace BWEM.NET
             }
         }
 
-        private void InitializeNeutrals(BWGame game)
+        private void InitializeNeutrals()
         {
-            foreach (var n in game.GetStaticNeutralUnits())
+            foreach (var n in _game.GetStaticNeutralUnits())
             {
                 if (n.GetUnitType().IsBuilding())
                 {

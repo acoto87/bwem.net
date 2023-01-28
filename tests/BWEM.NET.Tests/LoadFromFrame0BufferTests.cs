@@ -32,14 +32,16 @@ public class LoadFromFrame0BufferTests
         Assert.True(game.Self().GetPlayerType() == PlayerType.Player);
         Assert.True(game.Self().Minerals() == 50);
 
-        Map.Instance.Initialize(game);
+        var map = new Map(game);
+        map.Initialize();
 
-        Assert.True(Map.Instance.Minerals.Count > 0);
-        Assert.True(Map.Instance.Geysers.Count > 0);
-        Assert.True(Map.Instance.StaticBuildings.Count >= 0);
-        Assert.True(Map.Instance.StartingLocations.Count > 0);
-        Assert.True(Map.Instance.Areas.Count > 0);
-        Assert.True(Map.Instance.Bases.Count > 0);
+        Assert.True(map.Initialized);
+        Assert.True(map.Minerals.Count > 0);
+        Assert.True(map.Geysers.Count > 0);
+        Assert.True(map.StaticBuildings.Count >= 0);
+        Assert.True(map.StartingLocations.Count > 0);
+        Assert.True(map.Areas.Count > 0);
+        Assert.True(map.Bases.Count > 0);
     }
 
     private static MemoryMappedFile GetMemoryMappedFileForMap(string filePath)

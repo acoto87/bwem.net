@@ -20,6 +20,7 @@ namespace MarineHell
     {
         private BWClient _bwClient;
         private Game _game;
+        private Map _map;
         private Player _self;
         private int _frameskip = 0;
         private int _cyclesForSearching = 0;
@@ -58,10 +59,11 @@ namespace MarineHell
             _self = _game.Self();
             _game.SetLocalSpeed(0);
 
-            Map.Instance.Initialize(_game);
+            _map = new Map(_game);
+            _map.Initialize();
 
             _chokePointsCenters = new List<Position>();
-            foreach (var c in Map.Instance.ChokePoints)
+            foreach (var c in _map.ChokePoints)
             {
                 var sides = CalculateSides(c.Geometry);
                 var center = (sides.Left + sides.Right) / 2;
@@ -298,7 +300,7 @@ namespace MarineHell
                 }
             }
 
-            foreach (var b in Map.Instance.Bases)
+            foreach (var b in _map.Bases)
             {
                 // If this is a possible start location,
                 if (b.Starting)
@@ -528,21 +530,21 @@ namespace MarineHell
             return _chokePointsCenters.Count > 0 ? _chokePointsCenters.MinBy(x => x.GetDistance(position)) : position;
         }
 
-        private static Base GetStartLocation(Player player)
+        private Base GetStartLocation(Player player)
         {
             return GetNearestBaseLocation(player.GetStartLocation());
         }
 
-        private static Base GetNearestBaseLocation(TilePosition tilePosition)
+        private Base GetNearestBaseLocation(TilePosition tilePosition)
         {
-            return Map.Instance.Bases.MinBy(x => x.Location.GetDistance(tilePosition));
+            return _map.Bases.MinBy(x => x.Location.GetDistance(tilePosition));
         }
 
-        private static List<TilePosition> GetShortestPath(TilePosition start, TilePosition end)
+        private List<TilePosition> GetShortestPath(TilePosition start, TilePosition end)
         {
             var shortestPath = new List<TilePosition>();
 
-            var it = Map.Instance.GetPath(start.ToPosition(), end.ToPosition(), out _).GetEnumerator();
+            var it = _map.GetPath(start.ToPosition(), end.ToPosition(), out _).GetEnumerator();
 
             ChokePoint curr = null;
 
