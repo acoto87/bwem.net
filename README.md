@@ -65,6 +65,7 @@ namespace ExampleBot
     {
         private BWClient _bwClient;
         private Game _game;
+        private Map _map;
         private Player _self;
 
         public void Run()
@@ -78,7 +79,8 @@ namespace ExampleBot
             _game = _bwClient.Game;
             _self = _game.Self();
 
-            Map.Instance.Initialize(_game);
+            _map = new Map(_game);
+            _map.Initialize();
         }
 
         public override void OnFrame()
@@ -197,7 +199,7 @@ namespace ExampleBot
                 if (!marine.IsMoving())
                 {
                     var marinePosition = marine.GetPosition();
-                    var nearestChokePoint = Map.Instance.ChokePoints.MinBy(x => x.Center.ToPosition().GetDistance(marinePosition));
+                    var nearestChokePoint = _map.ChokePoints.MinBy(x => x.Center.ToPosition().GetDistance(marinePosition));
                     var nearestChokePointPosition = nearestChokePoint.Center.ToPosition();
                     marine.Move(nearestChokePointPosition, false);
                 }
